@@ -50,12 +50,14 @@ key   = "ctrl-b"
 label = "both"
 cmd   = 'code "$dir"; open -a "Rider" "$dir"'
 
-# ─── GUI (Mac menu-bar app) ──────────────────────────────────────────────────
-# Which terminal the GUI opens to run cm. "Terminal" | "iTerm" | "custom".
-# For "custom", set launch_command with {{cmd}} as the cm invocation placeholder.
+# ─── GUI / terminal ──────────────────────────────────────────────────────────
+# Which terminal the GUI opens sessions in.
+#   "default"  → the system default terminal (whatever opens .command files)
+#   an app name → "Terminal" | "iTerm" | "Ghostty" | "Warp" | "kitty" | "WezTerm" | "cmux"
+#   "custom"   → set launch_command with {{script}} (temp .command path), {{cmd}}, or {{dir}}
 [gui]
-terminal = "Terminal"
-# launch_command = 'open -a "iTerm" --args {{cmd}}'
+terminal = "default"
+# launch_command = 'open -a "iTerm" {{script}}'
 
 # ─── theme (optional) ────────────────────────────────────────────────────────
 # [theme]

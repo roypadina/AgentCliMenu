@@ -5,6 +5,7 @@ import { renderPeek } from './peek.js';
 import { resume, ResumeError } from './resume.js';
 import { registerConfigCommands } from './config.js';
 import { registerGuiConfigCommand } from './guiConfigCmd.js';
+import { registerGuiCommands } from './guiCmd.js';
 import type { Screen } from './router.js';
 
 export async function resolveId(prefix: string) {
@@ -91,6 +92,7 @@ export function buildProgram(): Command {
 
   registerConfigCommands(program);
   registerGuiConfigCommand(program);
+  registerGuiCommands(program);
   return program;
 }
 
