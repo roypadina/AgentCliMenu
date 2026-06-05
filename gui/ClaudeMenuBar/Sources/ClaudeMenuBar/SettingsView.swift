@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var defaultTool = "cld"
     @State private var terminal = "default"
     @State private var custom = ""
+    @State private var hotkey = ""
     @State private var terminalOpts: [TerminalOpt] = []
     @State private var loaded = false
 
@@ -55,6 +56,12 @@ struct SettingsView: View {
             }.labelsHidden().frame(width: 260)
             if terminal == "custom" {
                 TextField("launch command — {{script}} / {{cmd}} / {{dir}}", text: $custom)
+            }
+            Divider().padding(.vertical, 2)
+            sectionTitle("Launch shortcut (open the window)")
+            HStack {
+                TextField("e.g. cmd+shift+m  (empty = off)", text: $hotkey).frame(width: 260)
+                Text("⌘ shift ⌃ ⌥ + a key").font(.caption).foregroundColor(.secondary)
             }
         }
     }
@@ -132,6 +139,7 @@ struct SettingsView: View {
             tools = c.tools.map { ETool(name: $0.name, runs: $0.runs, label: $0.label, color: $0.color) }
             ides = c.ides.map { EIde(key: $0.key, label: $0.label, cmd: $0.cmd) }
             defaultTool = c.defaultTool; terminal = c.terminal; custom = c.launchCommand ?? ""
+            hotkey = c.hotkey ?? ""
         }
     }
 
@@ -140,12 +148,16 @@ struct SettingsView: View {
             defaultTool: defaultTool,
             terminal: terminal,
             launchCommand: terminal == "custom" && !custom.isEmpty ? custom : nil,
+            hotkey: hotkey.trimmingCharacters(in: .whitespaces).isEmpty ? nil : hotkey.trimmingCharacters(in: .whitespaces),
             groups: groups.map { GroupDTO(name: $0.name, path: $0.path, color: $0.color) },
             tools: tools.map { ToolDTO(name: $0.name, runs: $0.runs, label: $0.label.isEmpty ? " \($0.name) " : $0.label, color: $0.color) },
             ides: ides.map { IdeDTO(key: $0.key, label: $0.label, cmd: $0.cmd) }
         )
-        Cm.configSave(dto)
         dismiss()
-        onSaved()
+        Cm.configSave(dto) {
+            onSaved()
+            NotificationCenter.default.post(name: .cmReload, object: nil)
+            NotificationCenter.default.post(name: .cmHotkeyChanged, object: nil)
+        }
     }
 }

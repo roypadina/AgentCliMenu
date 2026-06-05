@@ -140,6 +140,7 @@ export function validateConfig(
   const gui = {
     terminal: asString(guiRaw.terminal) ?? DEFAULT_GUI.terminal,
     launchCommand: asString(guiRaw.launch_command),
+    hotkey: asString(guiRaw.hotkey),
   };
 
   const config: ClaudeMenuConfig = {

@@ -37,9 +37,15 @@ struct ConfigDTO: Codable {
     var defaultTool: String
     var terminal: String
     var launchCommand: String?
+    var hotkey: String?
     var groups: [GroupDTO]
     var tools: [ToolDTO]
     var ides: [IdeDTO]
+}
+
+extension Notification.Name {
+    static let cmReload = Notification.Name("cmReload")          // re-fetch projects/sessions
+    static let cmHotkeyChanged = Notification.Name("cmHotkeyChanged") // re-register the global shortcut
 }
 
 enum CmError: Error { case notFound, failed(String) }
@@ -99,21 +105,24 @@ enum Cm {
     static func configGet() async throws -> ConfigDTO { try await runAsync("config-get", ConfigDTO.self) }
 
     /// Write the full config (shared with the TUI) by piping JSON to `cm gui config-save`.
-    static func configSave(_ dto: ConfigDTO) {
+    /// `completion` runs on the main thread after the write finishes (avoids a read-before-write race).
+    static func configSave(_ dto: ConfigDTO, completion: (() -> Void)? = nil) {
         guard let data = try? JSONEncoder().encode(dto) else { return }
         DispatchQueue.global().async {
-            guard let cm = invocation() else { return }
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/bin/sh")
-            p.arguments = ["-lc", "\(cm) gui config-save"]
-            let inp = Pipe(); p.standardInput = inp
-            p.standardOutput = Pipe(); p.standardError = Pipe()
-            do {
-                try p.run()
-                inp.fileHandleForWriting.write(data)
-                inp.fileHandleForWriting.closeFile()
-                p.waitUntilExit()
-            } catch { /* ignore */ }
+            if let cm = invocation() {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/bin/sh")
+                p.arguments = ["-lc", "\(cm) gui config-save"]
+                let inp = Pipe(); p.standardInput = inp
+                p.standardOutput = Pipe(); p.standardError = Pipe()
+                do {
+                    try p.run()
+                    inp.fileHandleForWriting.write(data)
+                    inp.fileHandleForWriting.closeFile()
+                    p.waitUntilExit()
+                } catch { /* ignore */ }
+            }
+            if let completion = completion { DispatchQueue.main.async(execute: completion) }
         }
     }
 

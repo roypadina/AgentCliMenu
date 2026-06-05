@@ -36,9 +36,10 @@ struct ContentView: View {
             if tab == .new { newList } else { resumeList }
         }
         .padding(10)
-        .frame(width: 400, height: 540)
+        .frame(minWidth: 380, idealWidth: 400, maxWidth: .infinity, minHeight: 420, idealHeight: 560, maxHeight: .infinity)
         .task { await loadAll() }
-        .sheet(isPresented: $showSettings) { SettingsView(onSaved: { Task { await loadAll() } }) }
+        .onReceive(NotificationCenter.default.publisher(for: .cmReload)) { _ in Task { await reload() } }
+        .sheet(isPresented: $showSettings) { SettingsView(onSaved: { Task { await reload() } }) }
         .sheet(isPresented: $showNewDir) {
             NewDirView(groups: projects?.groups ?? [], tool: selectedTool) { onAction() }
         }
@@ -155,6 +156,13 @@ struct ContentView: View {
         guard sessions.isEmpty else { return }
         loading = true; defer { loading = false }
         do { sessions = try await Cm.sessions() } catch { errorText = describe(error) }
+    }
+    /// Force a fresh fetch (popover reopen / after a config save).
+    private func reload() async {
+        errorText = nil
+        sessions = []
+        await loadAll()
+        if tab == .resume { await loadSessions() }
     }
     private func describe(_ e: Error) -> String {
         if case CmError.notFound = e { return "cm not found. Install it (brew or npm link)." }

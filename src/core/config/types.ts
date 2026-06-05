@@ -42,6 +42,8 @@ export interface GuiConfig {
   terminal: string;
   /** for terminal = "custom": a shell template with {{cmd}} substituted. */
   launchCommand?: string;
+  /** global shortcut to open the GUI window, e.g. "cmd+shift+m" (Mac GUI only). */
+  hotkey?: string;
 }
 
 export interface ClaudeMenuConfig {

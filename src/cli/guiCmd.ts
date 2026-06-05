@@ -144,6 +144,7 @@ export function registerGuiCommands(program: Command): void {
         defaultTool: config.defaultTool,
         terminal: config.gui.terminal,
         launchCommand: config.gui.launchCommand ?? null,
+        hotkey: config.gui.hotkey ?? null,
         groups: config.groups.map((g) => ({ name: g.name, path: g.pathRaw, color: g.color })),
         tools: config.tools.map((t) => ({ name: t.name, runs: t.runs, label: t.label, color: t.color })),
         ides: config.ides.map((i) => ({ key: i.key, label: i.label, cmd: i.cmd })),
@@ -154,7 +155,7 @@ export function registerGuiCommands(program: Command): void {
     .description('write the full config (reads editable JSON from stdin)')
     .action(async () => {
       const c = JSON.parse(await readStdin()) as {
-        defaultTool?: string; terminal?: string; launchCommand?: string | null;
+        defaultTool?: string; terminal?: string; launchCommand?: string | null; hotkey?: string | null;
         groups?: Array<{ name: string; path: string; color: string }>;
         tools?: Array<{ name: string; runs: string; label: string; color: string }>;
         ides?: Array<{ key: string; label: string; cmd: string }>;
@@ -164,9 +165,10 @@ export function registerGuiCommands(program: Command): void {
       obj.group = (c.groups ?? []).filter((g) => g.name || g.path).map((g) => ({ name: g.name, path: g.path, color: g.color || '#8888aa' }));
       obj.tool = (c.tools ?? []).filter((t) => t.name).map((t) => ({ name: t.name, runs: t.runs, label: t.label, color: t.color || '#8888aa' }));
       obj.ide = (c.ides ?? []).filter((i) => i.key).map((i) => ({ key: i.key, label: i.label, cmd: i.cmd }));
-      obj.gui = c.launchCommand
-        ? { terminal: c.terminal || 'default', launch_command: c.launchCommand }
-        : { terminal: c.terminal || 'default' };
+      const guiObj: Record<string, unknown> = { terminal: c.terminal || 'default' };
+      if (c.launchCommand) guiObj.launch_command = c.launchCommand;
+      if (c.hotkey) guiObj.hotkey = c.hotkey;
+      obj.gui = guiObj;
       const text = `# ClaudeMenu config — editable by hand or via the GUI (cm config --edit).\n\n${tomlStringify(obj)}\n`;
       const p = configPath();
       mkdirSync(dirname(p), { recursive: true });

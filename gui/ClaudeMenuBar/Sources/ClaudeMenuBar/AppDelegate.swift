@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
     private var window: NSWindow?
+    private let hotKey = HotKey()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -15,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 400, height: 540)
+        popover.contentSize = NSSize(width: 400, height: 560)
         popover.contentViewController = NSHostingController(
             rootView: ContentView(
                 onAction: { [weak self] in self?.popover.performClose(nil) },
@@ -23,8 +24,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         )
 
-        // Debug/preview: open the window immediately (so it can be screenshotted headlessly).
+        // Global shortcut → open the window; re-register when settings change.
+        hotKey.onFire = { [weak self] in self?.openWindow() }
+        refreshHotkey()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshHotkey), name: .cmHotkeyChanged, object: nil)
+
         if ProcessInfo.processInfo.environment["CM_GUI_SHOW_WINDOW"] == "1" { openWindow() }
+    }
+
+    @objc private func refreshHotkey() {
+        Task { [weak self] in
+            let spec = (try? await Cm.configGet())?.hotkey
+            await MainActor.run { self?.hotKey.register(spec) }
+        }
     }
 
     @objc private func statusClicked() {
@@ -39,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
+            NotificationCenter.default.post(name: .cmReload, object: nil) // refresh each open
         }
     }
 
@@ -58,17 +71,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.performClose(nil)
         if window == nil {
             let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 460, height: 600),
+                contentRect: NSRect(x: 0, y: 0, width: 820, height: 820),
                 styleMask: [.titled, .closable, .resizable, .miniaturizable],
                 backing: .buffered, defer: false
             )
             w.title = "ClaudeMenu"
+            w.minSize = NSSize(width: 460, height: 460)
             if ProcessInfo.processInfo.environment["CM_GUI_SHOW_SETTINGS"] == "1" {
                 w.contentViewController = NSHostingController(rootView: SettingsView())
             } else {
                 w.contentViewController = NSHostingController(rootView: ContentView())
             }
             w.center()
+            // Remember the user's size/position across launches.
+            w.setFrameAutosaveName("ClaudeMenuWindow")
             w.isReleasedWhenClosed = false
             window = w
         }
