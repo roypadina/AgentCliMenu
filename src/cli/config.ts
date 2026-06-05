@@ -16,7 +16,7 @@ export function runSetup(): void {
     copyFileSync(exampleConfigPath(), cfg);
     console.log(`seeded config at ${cfg}`);
   }
-  console.log('edit it with:  cm config --edit');
+  console.log('edit it with:  agent-cli-menu config --edit');
 }
 
 export function runEdit(): void {

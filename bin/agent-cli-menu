@@ -1,3 +1,2 @@
 #!/usr/bin/env node
-process.env.CM_ENTRY = 'new';
 import('../dist/cli.js');

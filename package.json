@@ -1,6 +1,6 @@
 {
   "name": "agentclimenu",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "One menu to start new Claude/Codex sessions in a project, or search + resume existing ones",
   "type": "module",
   "license": "MIT",
@@ -9,9 +9,8 @@
   "repository": { "type": "git", "url": "git+https://github.com/roypadina/AgentCliMenu.git" },
   "bugs": "https://github.com/roypadina/AgentCliMenu/issues",
   "bin": {
-    "cm": "bin/cm",
-    "cld": "bin/cld",
-    "ccsm": "bin/ccsm"
+    "agent-cli-menu": "bin/agent-cli-menu",
+    "acm": "bin/acm"
   },
   "files": [
     "dist",

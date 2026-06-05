@@ -1,6 +1,6 @@
 import Foundation
 
-// ── JSON models (mirror `cm gui ...` output) ──────────────────────────────────
+// ── JSON models (mirror `agent-cli-menu gui ...` output) ──────────────────────────────────
 struct ProjectsResponse: Codable {
     let groups: [Group]
     let tools: [Tool]
@@ -30,7 +30,7 @@ struct TerminalsResponse: Codable {
     let terminals: [TerminalOpt]; let current: String; let customCommand: String?
 }
 
-// Editable config (shared with the TUI). Mirrors `cm gui config-get` / `config-save`.
+// Editable config (shared with the TUI). Mirrors `agent-cli-menu gui config-get` / `config-save`.
 struct GroupDTO: Codable { var name: String; var path: String; var color: String }
 struct ToolDTO: Codable { var name: String; var runs: String; var label: String; var color: String }
 struct IdeDTO: Codable { var key: String; var label: String; var cmd: String }
@@ -52,15 +52,19 @@ extension Notification.Name {
 
 enum CmError: Error { case notFound, failed(String) }
 
-/// Thin client over the `cm gui ...` CLI. All real work (config, launching) lives in Node.
+/// Thin client over the `agent-cli-menu gui ...` CLI. All real work (config, launching) lives in Node.
 enum Cm {
-    /// Resolve a runnable cm. $CM_BIN overrides; else probe fixed install paths.
+    /// Resolve a runnable agent-cli-menu. $ACM_BIN overrides; else probe fixed install paths
+    /// for `agent-cli-menu` (then the `acm` alias).
     static func invocation() -> String? {
-        if let o = ProcessInfo.processInfo.environment["CM_BIN"], !o.isEmpty { return o }
+        if let o = ProcessInfo.processInfo.environment["ACM_BIN"], !o.isEmpty { return o }
         let home = NSHomeDirectory()
-        let candidates = ["/opt/homebrew/bin/cm", "/usr/local/bin/cm", "\(home)/.local/bin/cm"]
-        for c in candidates where FileManager.default.isExecutableFile(atPath: c) {
-            return "'\(c)'"
+        let dirs = ["/opt/homebrew/bin", "/usr/local/bin", "\(home)/.local/bin"]
+        for name in ["agent-cli-menu", "acm"] {
+            for d in dirs {
+                let c = "\(d)/\(name)"
+                if FileManager.default.isExecutableFile(atPath: c) { return "'\(c)'" }
+            }
         }
         return nil
     }
@@ -103,7 +107,7 @@ enum Cm {
     private static func postFailure(_ error: Error) {
         let msg: String
         switch error {
-        case CmError.notFound: msg = "cm not found. Install it (brew or npm link)."
+        case CmError.notFound: msg = "agent-cli-menu not found. Install it (brew or npm link)."
         case CmError.failed(let m): msg = m.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "the action failed." : m
         default: msg = "\(error)"
         }
@@ -120,7 +124,7 @@ enum Cm {
     static func resume(id: String) { runVoid("resume --id '\(esc(id))'") }
     static func configGet() async throws -> ConfigDTO { try await runAsync("config-get", ConfigDTO.self) }
 
-    /// Write the full config (shared with the TUI) by piping JSON to `cm gui config-save`.
+    /// Write the full config (shared with the TUI) by piping JSON to `agent-cli-menu gui config-save`.
     /// `completion` runs on the main thread after the write finishes (avoids a read-before-write race).
     static func configSave(_ dto: ConfigDTO, completion: (() -> Void)? = nil) {
         guard let data = try? JSONEncoder().encode(dto) else { return }

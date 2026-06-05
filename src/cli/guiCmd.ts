@@ -190,7 +190,7 @@ export function registerGuiCommands(program: Command): void {
       if (c.launchCommand) guiObj.launch_command = c.launchCommand;
       if (c.hotkey) guiObj.hotkey = c.hotkey;
       obj.gui = guiObj;
-      const text = `# AgentCliMenu config — editable by hand or via the GUI (cm config --edit).\n\n${tomlStringify(obj)}\n`;
+      const text = `# Agent CLI Menu config — editable by hand or via the GUI (agent-cli-menu config --edit).\n\n${tomlStringify(obj)}\n`;
       const p = configPath();
       mkdirSync(dirname(p), { recursive: true });
       writeFileSync(p, text);

@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="docs/screenshots/gui-resume.png" alt="AgentCliMenu — start a new Claude or Codex session in any project, or search and resume an existing one. A terminal menu plus a native macOS menu-bar GUI." width="720">
+<img src="docs/screenshots/gui-resume.png" alt="Agent CLI Menu — start a new Claude or Codex session in any project, or search and resume an existing one. A terminal menu plus a native macOS menu-bar GUI." width="720">
 
-# AgentCliMenu
+# Agent CLI Menu
 
 ### One menu for every Claude & Codex session — start a new one in any project, or search and resume an old one.
 
 A fast launcher for coding-agent sessions: pick a project and start **`claude`** / **`codex`**, or
 fuzzy-search and **resume** any past Claude Code session — with a live transcript preview. Ships as a
-terminal menu (**`cm`** / **`cld`** / **`ccsm`**) **and** a native macOS menu-bar app that share one config.
+terminal menu (**`agent-cli-menu`**, alias **`acm`**) **and** a native macOS menu-bar app that share one config.
 
 [![macOS](https://img.shields.io/badge/macOS-12%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Node](https://img.shields.io/badge/Node-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org)
@@ -46,7 +46,7 @@ You start coding-agent sessions all day — `claude` here, `codex` there — and
 back into one from yesterday but can't remember which folder it was in. Claude Code stores every
 session under `~/.claude/`, but there's no good way to *find* one.
 
-AgentCliMenu is two halves of that workflow in one tool:
+Agent CLI Menu is two halves of that workflow in one tool:
 
 - **New** — pick a project directory (grouped, frecency-sorted, fuzzy-filtered) and launch your agent
   there. Open it in your IDE first, in tmux, after a `git pull`, or create a brand-new directory on the fly.
@@ -97,7 +97,7 @@ It's **local-only** — it reads `~/.claude/` and your project folders, and runs
 The terminal menu mirrors the same model — start in **New**, `⇥` to **Resume**:
 
 ```
- ccsm    24 sessions  ·  3 active  ·  2/24
+ resume   24 sessions  ·  3 active  ·  2/24
  ● busy   ● idle   ○ inactive
 
  ▶ ● AgentCliMenu — GUI keyboard nav            p peek
@@ -115,15 +115,15 @@ The terminal menu mirrors the same model — start in **New**, `⇥` to **Resume
 
 > **Requires macOS 12+** and **Node 18+** (the terminal menu runs on Node; the GUI bundles its CLI and depends on Node via Homebrew).
 
-### Homebrew (GUI app + `cm` / `cld` / `ccsm` CLI, one install)
+### Homebrew (GUI app + `agent-cli-menu` CLI, one install)
 
 ```bash
 brew install --cask roypadina/tap/agentclimenu
 ```
 
-This installs **AgentCliMenu.app** (the menu-bar GUI) and puts **`cm`**, **`cld`**, and **`ccsm`** on your `PATH`.
+This installs **AgentCliMenu.app** (the menu-bar GUI) and puts **`agent-cli-menu`** (plus the short alias **`acm`**) on your `PATH`.
 
-> AgentCliMenu is ad-hoc signed (not notarized). On first launch, **right-click AgentCliMenu in
+> Agent CLI Menu is ad-hoc signed (not notarized). On first launch, **right-click Agent CLI Menu in
 > `/Applications` → Open** (then Open again), or run once:
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/AgentCliMenu.app"
@@ -137,33 +137,33 @@ git clone https://github.com/roypadina/AgentCliMenu.git
 cd AgentCliMenu
 npm install
 npm run build
-npm link            # puts cm / cld / ccsm on your PATH
+npm link            # puts agent-cli-menu + acm on your PATH
 
 # optional: build the Mac GUI
 bash gui/build-app.sh
 open gui/AgentCliMenu.app
 ```
 
-First run sets up a starter config: `cm config --setup`.
+First run sets up a starter config: `agent-cli-menu config --setup`.
 
 ## The terminal menu
 
-Three commands, same tool — they just open on a different tab:
+`agent-cli-menu` opens the menu — **New** by default, `⇥` to **Resume** (or jump straight there with `-r`).
+**`acm`** is a shorter alias for the exact same tool. Want `cld`/`cdx`-style per-tool shortcuts? Add your own aliases.
 
-| Command | Opens on | Equivalent to |
-|---|---|---|
-| **`cm`** | New (with `⇥` to Resume) | the full menu |
-| **`cld`** | New | the old `cld` launcher |
-| **`ccsm`** | Resume | the old session manager |
+| Command | Opens |
+|---|---|
+| `agent-cli-menu` &nbsp;·&nbsp; `acm` | New-session menu (`⇥` to Resume) |
+| `agent-cli-menu -r` &nbsp;·&nbsp; `acm -r` | Resume menu |
 
 Plus non-interactive subcommands:
 
 ```bash
-cm ls [--cwd <path>] [--active] [--json] [--sort updated|started|name] [--limit N]
-cm peek <id> [--full] [--head N --tail N]      # print a transcript
-cm resume <id> [--yes] [--cwd <override>]      # resume by id (prefix ≥ 4 chars)
-cm path <id>                                   # print the .jsonl path
-cm config --setup | --edit | --path            # manage the shared config
+agent-cli-menu ls [--cwd <path>] [--active] [--json] [--sort updated|started|name] [--limit N]
+agent-cli-menu peek <id> [--full] [--head N --tail N]   # print a transcript
+agent-cli-menu resume <id> [--yes] [--cwd <override>]   # resume by id (prefix ≥ 4 chars)
+agent-cli-menu path <id>                                # print the .jsonl path
+agent-cli-menu config --setup | --edit | --path         # manage the shared config
 ```
 
 ### Keys
@@ -178,7 +178,7 @@ decoded with confidence — `↵` twice to resume anyway.
 ## The Mac GUI
 
 A SwiftUI menu-bar agent (look for **✦** in the menu bar). Click it for the popover, or detach into a
-resizable window. It's a thin view over the same `cm` back-end — it never parses your config or reads
+resizable window. It's a thin view over the same `agent-cli-menu` back-end — it never parses your config or reads
 `~/.claude` itself.
 
 - **Fully keyboard-driven** — type to filter, `↑/↓` to select, `↵` to launch/resume, `⇥` to switch tabs,
@@ -197,7 +197,7 @@ One TOML file, shared by the terminal and the GUI:
 $AGENTCLIMENU_CONFIG  →  $XDG_CONFIG_HOME/agentclimenu/config.toml  →  ~/.config/agentclimenu/config.toml
 ```
 
-`cm config --setup` writes a starter; `cm config --edit` opens it; the GUI's **Settings** edits the same file.
+`agent-cli-menu config --setup` writes a starter; `agent-cli-menu config --edit` opens it; the GUI's **Settings** edits the same file.
 See [`config.example.toml`](config.example.toml) for every option. The shape:
 
 ```toml
@@ -230,7 +230,7 @@ A clean two-layer split keeps the logic reusable and testable:
 |---|---|
 | **`src/core/`** | Pure data — zero React/ink. Session scan & cwd-decode, streaming JSONL parse, live-PID status, git branch, fuzzy matcher, TOML config, project scanner, launch planner. Unit-tested. |
 | **`src/cli/`** | The ink TUI (New + Resume tabs, peek, search) and the non-interactive subcommands. The only layer that touches presentation. |
-| **`gui/`** | A native SwiftUI menu-bar + window app. A thin client over `cm gui …` (JSON in, launch out) — it imports none of the Node code and re-reads nothing. |
+| **`gui/`** | A native SwiftUI menu-bar + window app. A thin client over `agent-cli-menu gui …` (JSON in, launch out) — it imports none of the Node code and re-reads nothing. |
 
 Session names come from the transcript in priority order: a `/rename` custom title → an auto-generated
 title → the first user prompt. Status (`busy`/`idle`/`inactive`) is derived from a live PID file plus a
@@ -271,7 +271,7 @@ npm test && npm run typecheck && npm run build   # the whole check
 
 ## Support
 
-If AgentCliMenu saves you some clicks and tab-hunting, you can
+If Agent CLI Menu saves you some clicks and tab-hunting, you can
 [**buy me a coffee on Ko-fi ☕**](https://ko-fi.com/roypadina) — totally optional, always appreciated.
 A **⭐ star** helps just as much.
 

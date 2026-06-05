@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the Homebrew-cask release artifact: AgentCliMenu.app with the cm/cld/ccsm CLI
+# Build the Homebrew-cask release artifact: AgentCliMenu.app with the agent-cli-menu + acm CLI
 # bundled inside (Contents/Resources/cli), then zip it. The cask installs the app and
 # symlinks the bundled bin shims onto PATH; they run on Node (depends_on node).
 set -eu

@@ -10,7 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "✦"
-        statusItem.button?.toolTip = "AgentCliMenu"
+        statusItem.button?.toolTip = "Agent CLI Menu"
         statusItem.button?.target = self
         statusItem.button?.action = #selector(statusClicked)
         statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showMenu() {
         let menu = NSMenu()
-        let open = NSMenuItem(title: "Open AgentCliMenu", action: #selector(togglePopover), keyEquivalent: "")
+        let open = NSMenuItem(title: "Open Agent CLI Menu", action: #selector(togglePopover), keyEquivalent: "")
         let win = NSMenuItem(title: "Open in window", action: #selector(openWindow), keyEquivalent: "")
         let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
         for item in [open, win, quitItem] { item.target = self }
@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 styleMask: [.titled, .closable, .resizable, .miniaturizable],
                 backing: .buffered, defer: false
             )
-            w.title = "AgentCliMenu"
+            w.title = "Agent CLI Menu"
             w.minSize = NSSize(width: 460, height: 460)
             if ProcessInfo.processInfo.environment["CM_GUI_SHOW_SETTINGS"] == "1" {
                 w.contentViewController = NSHostingController(rootView: SettingsView())

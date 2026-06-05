@@ -167,7 +167,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
       <Box flexDirection="column">
         <Text bold color="red">config error</Text>
         <Box marginTop={1}><Text>{configError.message}</Text></Box>
-        <Box marginTop={1}><Text dimColor>Fix it (cm config --edit), then reopen.  esc back</Text></Box>
+        <Box marginTop={1}><Text dimColor>Fix it (agent-cli-menu config --edit), then reopen.  esc back</Text></Box>
       </Box>
     );
   }
@@ -197,7 +197,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
           {rows.length === 0 ? (
             <Text dimColor>
               {groups.length === 0
-                ? '(no groups configured — run: cm config --setup, then add [[group]] entries)'
+                ? '(no groups configured — run: agent-cli-menu config --setup, then add [[group]] entries)'
                 : query ? `(no matches for "${query}")` : '(no matching project dirs)'}
             </Text>
           ) : (

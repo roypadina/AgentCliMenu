@@ -79,7 +79,7 @@ export interface LoadConfigResult {
   sizeBytes: number;
 }
 
-/** Thrown only on the explicit config command paths (cm config / --setup / --edit). */
+/** Thrown only on the explicit config command paths (agent-cli-menu config / --setup / --edit). */
 export class ConfigError extends Error {
   constructor(public code: number, message: string) {
     super(message);

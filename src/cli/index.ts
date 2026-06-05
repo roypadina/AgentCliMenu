@@ -5,7 +5,6 @@ import { renderPeek } from './peek.js';
 import { resume, ResumeError } from './resume.js';
 import { registerConfigCommands } from './config.js';
 import { registerGuiCommands } from './guiCmd.js';
-import type { Screen } from './router.js';
 
 export async function resolveId(prefix: string) {
   if (prefix.length < 4) {
@@ -28,9 +27,14 @@ export async function resolveId(prefix: string) {
 export function buildProgram(): Command {
   const program = new Command();
   program
-    .name('cm')
-    .description('AgentCliMenu — new sessions in a project, or search + resume existing ones')
-    .version('0.1.1');
+    .name('agent-cli-menu')
+    .description('Agent CLI Menu — start a new Claude/Codex session in a project, or search + resume an existing one')
+    .version('0.2.0')
+    .option('-r, --resume', 'open the Resume menu (default opens New)')
+    .action(async (opts: { resume?: boolean }) => {
+      const { runApp } = await import('./router.js');
+      await runApp(opts.resume ? 'resume' : 'new');
+    });
 
   program
     .command('ls')
@@ -95,13 +99,7 @@ export function buildProgram(): Command {
 }
 
 async function main() {
-  const entry = (process.env.CM_ENTRY as Screen) ?? 'root';
-  const args = process.argv.slice(2);
-  if (args.length === 0) {
-    const { runApp } = await import('./router.js');
-    await runApp(entry === 'new' || entry === 'resume' ? entry : 'root');
-    return;
-  }
+  // Bare `agent-cli-menu` → New; `-r`/`--resume` → Resume; both via the root action.
   await buildProgram().parseAsync(process.argv);
 }
 

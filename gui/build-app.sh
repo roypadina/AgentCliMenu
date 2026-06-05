@@ -18,4 +18,4 @@ codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
 
 echo "✓ built $(cd .. && pwd)/AgentCliMenu.app"
 echo "  run:  open '$(cd .. && pwd)/AgentCliMenu.app'   (look for ✦ in the menu bar)"
-echo "  needs 'cm' on PATH — install it (brew, or 'npm link' from the repo root) first."
+echo "  needs 'agent-cli-menu' on PATH — install it (brew, or 'npm link' from the repo root) first."

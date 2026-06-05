@@ -22,7 +22,7 @@ npm run typecheck   # tsc --noEmit
 npm run build       # tsup → dist/
 
 # run from source without building:
-npx tsx src/cli/index.ts        # cm (root)
+npx tsx src/cli/index.ts        # agent-cli-menu (New; -r for Resume)
 # build the Mac GUI:
 bash gui/build-app.sh && open gui/AgentCliMenu.app
 ```
@@ -38,7 +38,7 @@ A strict two-layer split — please keep it intact:
 - **`src/cli/`** — the ink TUI and the non-interactive subcommands. The only layer that touches
   presentation. UI in `tui.tsx` / screens gets smoke tests only; full UX validation is manual in a
   real terminal.
-- **`gui/`** — a native SwiftUI app that is a thin client over `cm gui …`. It imports none of the
+- **`gui/`** — a native SwiftUI app that is a thin client over `agent-cli-menu gui …`. It imports none of the
   Node code.
 
 See [`CLAUDE.md`](CLAUDE.md) for the full module map and conventions.
@@ -63,4 +63,4 @@ See [`CLAUDE.md`](CLAUDE.md) for the full module map and conventions.
 ## Reporting bugs / requesting features
 
 Use the [issue templates](https://github.com/roypadina/AgentCliMenu/issues/new/choose). For bugs,
-include your macOS + Node versions and how you launched it (`cm` / `cld` / `ccsm` / GUI).
+include your macOS + Node versions and how you launched it (`agent-cli-menu` / `acm` / GUI).

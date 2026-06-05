@@ -225,7 +225,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const renderHeader = () => (
     <Box flexDirection="column">
       <Box>
-        <Text bold color="cyan">ccsm</Text>
+        <Text bold color="cyan">resume</Text>
         <Text dimColor>   </Text>
         <Text color="white">{records.length}</Text>
         <Text dimColor> sessions  ·  </Text>

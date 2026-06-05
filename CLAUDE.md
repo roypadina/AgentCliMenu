@@ -1,6 +1,6 @@
-# AgentCliMenu (`cm` / `cld` / `ccsm`)
+# Agent CLI Menu (`agent-cli-menu` / `acm`)
 
-Node.js + TypeScript CLI/TUI. One menu with two halves: **New** — start a new Claude/Codex session in a project dir (configurable groups, frecency sort, IDE/tmux/pull/new-dir keys — the old `cld` launcher); **Resume** — search + resume any existing Claude Code session under `~/.claude/` (the old `ccsm`). Commands: `cm` → root chooser, `cld` → New, `ccsm` → Resume. Local-only, no cloud. Built by merging `cld` (zsh) + `ccsm` into one publishable tool — see `docs/superpowers/plans/2026-06-05-agentclimenu.md`.
+Node.js + TypeScript CLI/TUI. One menu with two halves: **New** — start a new Claude/Codex session in a project dir (configurable groups, frecency sort, IDE/tmux/pull/new-dir keys — the old `cld` launcher); **Resume** — search + resume any existing Claude Code session under `~/.claude/` (the old `ccsm`). Commands: `agent-cli-menu` (alias `acm`) → New by default; `-r`/`--resume` → Resume. Local-only, no cloud. Built by merging `cld` (zsh) + `ccsm` into one publishable tool — see `docs/superpowers/plans/2026-06-05-agentclimenu.md`.
 
 ## Quick reference
 
@@ -11,11 +11,11 @@ Node.js + TypeScript CLI/TUI. One menu with two halves: **New** — start a new 
 | Typecheck | `npm run typecheck` |
 | Build | `npm run build` |
 | Run from source | `npx tsx src/cli/index.ts <args>` |
-| Run built binary | `node bin/ccsm <args>` |
+| Run built binary | `node bin/agent-cli-menu <args>` |
 | Watch tests | `npm run test:watch` |
 | Dev build watch | `npm run dev` |
 
-`bin/ccsm` is the production entry — it just `import()`s `dist/cli.js`, so you must run `npm run build` before it works. For TS-direct runs use `npx tsx src/cli/index.ts`.
+`bin/agent-cli-menu` is the production entry — it just `import()`s `dist/cli.js`, so you must run `npm run build` before it works. For TS-direct runs use `npx tsx src/cli/index.ts`.
 
 ## Layout
 
@@ -48,7 +48,7 @@ src/cli/                  zero direct fs reads — goes through sessionRepo
   format.ts               formatDate, timeAgo, truncEnd, truncMiddle
 
 tests/                    vitest, fixture trees under tests/fixtures/
-bin/ccsm                  Node shebang shim → dist/cli.js
+bin/agent-cli-menu                  Node shebang shim → dist/cli.js
 docs/superpowers/
   specs/2026-05-22-claude-session-manager-design.md
   plans/2026-05-22-ccsm.md
@@ -69,7 +69,7 @@ docs/superpowers/
 ## AgentCliMenu launcher conventions
 
 - **Config lives at `~/.config/agentclimenu/config.toml`** (chain: `$AGENTCLIMENU_CONFIG` → `$XDG_CONFIG_HOME/agentclimenu` → `~/.config/agentclimenu`). `$CLD_CONFIG` is intentionally NOT honored — clean break from cld.
-- **`smol-toml`** is the one justified extra dep (TOML is core to New, not a one-off helper). It is TOML-1.0 strict; lax cld configs may need a re-seed (`cm config --setup`).
+- **`smol-toml`** is the one justified extra dep (TOML is core to New, not a one-off helper). It is TOML-1.0 strict; lax cld configs may need a re-seed (`agent-cli-menu config --setup`).
 - **Shell var is lowercase `dir`** — IDE `cmd` / tool `runs` reference `$dir` (matching cld's `eval`). The launch executor sets `dir` (lowercase), shell-quoted, and runs via `${SHELL:-/bin/zsh} -c` (NOT `-lc` — no rc re-source).
 - **New rows show git branch only** (`readGitBranch`, zero-spawn). No dirty count (would require shelling out per row).
 - **Reserved keys** (`enter ctrl-f ctrl-p ctrl-t ctrl-n`) are owned by the New screen and passed into `validateConfig`; a colliding `[[ide]].key` is dropped with a warning, never a throw.
@@ -112,7 +112,7 @@ Then drop a leading `/word` or `/skill:command ` prefix from the first user prom
 - File-watcher / live auto-refresh (`r` key manual refresh only).
 - True fuzzy match (current search is whitespace-split AND of case-insensitive substrings).
 - Electron/Tauri/web GUI. (A native SwiftUI menu-bar + window GUI lives in `gui/` — the picker
-  itself: New/Resume lists, new-dir, and a full config editor. It's a thin view over `cm gui …`
+  itself: New/Resume lists, new-dir, and a full config editor. It's a thin view over `agent-cli-menu gui …`
   (projects/sessions/new-dir/launch/resume/terminals/config-get/config-save) and never reads
   `~/.claude` or parses TOML itself. Sessions open in the configured terminal; config is shared
   with the TUI.)

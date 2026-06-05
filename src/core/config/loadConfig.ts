@@ -29,7 +29,7 @@ export interface LoadConfigOptions {
 /**
  * Load + validate the config. Missing file → defaults (no throw). A TOML syntax error throws
  * ConfigError(5) (caller decides whether to surface or fall back) — see B8: only the explicit
- * `cm config` paths let it propagate; interactive screens catch it.
+ * `agent-cli-menu config` paths let it propagate; interactive screens catch it.
  * Note: readFileSync is fine here — config is KB-scale. The streaming rule is for MB JSONL.
  */
 export function loadConfig(opts: LoadConfigOptions = {}): LoadConfigResult {

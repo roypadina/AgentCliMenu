@@ -147,7 +147,7 @@ struct ContentView: View {
                         if newFlat.isEmpty {
                             emptyState(
                                 (projects?.groups.isEmpty ?? true)
-                                    ? "No groups configured.\nRun: cm config --setup"
+                                    ? "No groups configured.\nRun: agent-cli-menu config --setup"
                                     : query.isEmpty ? "No project dirs found." : "No matches for “\(query)”."
                             )
                         }
@@ -357,8 +357,8 @@ struct ContentView: View {
         if tab == .resume { await loadSessions() }
     }
     private func describe(_ e: Error) -> String {
-        if case CmError.notFound = e { return "cm not found. Install it (brew or npm link)." }
-        if case CmError.failed(let m) = e { return "cm error: \(m)" }
+        if case CmError.notFound = e { return "agent-cli-menu not found. Install it (brew or npm link)." }
+        if case CmError.failed(let m) = e { return "agent-cli-menu error: \(m)" }
         return "\(e)"
     }
 }

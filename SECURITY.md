@@ -19,4 +19,4 @@ AgentCliMenu runs entirely on-device and makes no network calls of its own. Rele
   ids are interpolated into the resume command (validated against a strict charset first).
 - **Config parsing** — the shared TOML config is read from `~/.config/agentclimenu/`.
 - **Session reading** — `~/.claude/` transcripts are parsed read-only.
-- **The Mac GUI** runs un-sandboxed and ad-hoc signed; it shells out only to the bundled `cm`.
+- **The Mac GUI** runs un-sandboxed and ad-hoc signed; it shells out only to the bundled `agent-cli-menu`.
