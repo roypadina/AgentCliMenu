@@ -1,0 +1,1 @@
+{"type":"user","timestamp":1700000000000,"message":{"role":"user","content":"<command-message>foo</command-message>\n<command-name>/foo</command-name>\n<command-args>real prompt here</command-args>"}}

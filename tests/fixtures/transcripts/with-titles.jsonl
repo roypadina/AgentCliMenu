@@ -1,0 +1,4 @@
+{"type":"user","timestamp":1700000000000,"message":{"role":"user","content":"the original prompt"}}
+{"type":"ai-title","aiTitle":"Auto generated title","sessionId":"x"}
+{"type":"custom-title","customTitle":"Snowflake plugin","sessionId":"x"}
+{"type":"ai-title","aiTitle":"Newer auto title","sessionId":"x"}

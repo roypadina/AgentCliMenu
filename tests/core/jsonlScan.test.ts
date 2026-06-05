@@ -1,0 +1,39 @@
+import { describe, it, expect } from 'vitest';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { scanJsonl } from '../../src/core/jsonlScan.js';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const fixtures = join(here, '..', 'fixtures', 'transcripts');
+
+describe('scanJsonl', () => {
+  it('returns first user prompt and first timestamp', async () => {
+    const r = await scanJsonl(join(fixtures, 'simple.jsonl'));
+    expect(r.firstPrompt).toBe('hello world');
+    expect(r.firstTimestamp?.getTime()).toBe(1700000000000);
+    expect(r.corruptLines).toBe(0);
+  });
+
+  it('skips corrupt lines and still finds first prompt', async () => {
+    const r = await scanJsonl(join(fixtures, 'malformed.jsonl'));
+    expect(r.firstPrompt).toBe('after corrupt');
+    expect(r.corruptLines).toBe(1);
+  });
+
+  it('strips command tags to derive a clean prompt', async () => {
+    const r = await scanJsonl(join(fixtures, 'with-command-tags.jsonl'));
+    expect(r.firstPrompt).toBe('real prompt here');
+  });
+
+  it('returns nulls for empty file', async () => {
+    const r = await scanJsonl(join(fixtures, 'does-not-exist.jsonl')).catch(() => null);
+    expect(r).toBeNull();
+  });
+
+  it('captures custom-title and ai-title separately, keeping latest of each', async () => {
+    const r = await scanJsonl(join(fixtures, 'with-titles.jsonl'));
+    expect(r.customTitle).toBe('Snowflake plugin');
+    expect(r.aiTitle).toBe('Newer auto title');
+    expect(r.firstPrompt).toBe('the original prompt');
+  });
+});

@@ -1,0 +1,5 @@
+{"type":"user","message":{"role":"user","content":"<system-reminder>ignored</system-reminder>real question"}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"reading file"},{"type":"tool_use","name":"Read","input":{"path":"/etc/hosts"}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"127.0.0.1 localhost"}]}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"hmm"},{"type":"text","text":"answer here"}]}}
+{"type":"summary","summary":"discussed hosts file"}

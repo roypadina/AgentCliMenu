@@ -1,0 +1,3 @@
+{"type":"last-prompt","sessionId":"abc"}
+not json at all
+{"type":"user","timestamp":1700000000000,"message":{"role":"user","content":"after corrupt"}}

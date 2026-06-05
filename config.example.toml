@@ -1,0 +1,62 @@
+# ClaudeMenu config — copy to ~/.config/claudemenu/config.toml and edit (`cm config --setup`).
+
+# Optional. Which tool's launcher is primary (informational).
+default_tool = "cld"
+
+# ─── dir groups ──────────────────────────────────────────────────────────────
+# Each group is a section in the New screen. `path` is scanned one level deep for
+# project dirs, sorted by `z` frecency (falls back to mtime). ~ and $HOME expand.
+[[group]]
+name  = "Frontend"
+path  = "~/code/frontend"
+color = "#6C91BF"
+
+[[group]]
+name  = "Backend"
+path  = "~/code/backend"
+color = "#A855F7"
+
+# ─── tools ───────────────────────────────────────────────────────────────────
+# Each tool generates a launcher command named `name`. `runs` is a shell command
+# executed in the chosen dir. Adding/removing a tool takes effect in a NEW shell.
+[[tool]]
+name  = "cld"
+runs  = "claude --dangerously-skip-permissions"
+label = " ⚡ Projects "
+color = "#6C91BF"
+
+[[tool]]
+name  = "cdx"
+runs  = "codex --dangerously-bypass-approvals-and-sandbox"
+label = " ✦ Codex "
+color = "#A855F7"
+
+# ─── IDEs ────────────────────────────────────────────────────────────────────
+# Each IDE binds an fzf-style ctrl-key: opens the editor, then launches the tool.
+# `cmd` is run via the shell with $dir = the selected absolute path.
+# Reserved keys (cannot be used): ctrl-f ctrl-p ctrl-t ctrl-n (and enter).
+[[ide]]
+key   = "ctrl-v"
+label = "code"
+cmd   = 'code "$dir"'
+
+[[ide]]
+key   = "ctrl-r"
+label = "rider"
+cmd   = 'open -a "Rider" "$dir"'
+
+[[ide]]
+key   = "ctrl-b"
+label = "both"
+cmd   = 'code "$dir"; open -a "Rider" "$dir"'
+
+# ─── GUI (Mac menu-bar app) ──────────────────────────────────────────────────
+# Which terminal the GUI opens to run cm. "Terminal" | "iTerm" | "custom".
+# For "custom", set launch_command with {{cmd}} as the cm invocation placeholder.
+[gui]
+terminal = "Terminal"
+# launch_command = 'open -a "iTerm" --args {{cmd}}'
+
+# ─── theme (optional) ────────────────────────────────────────────────────────
+# [theme]
+# accent = "#FF9F43"

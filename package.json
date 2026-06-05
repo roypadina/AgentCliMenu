@@ -1,0 +1,46 @@
+{
+  "name": "claudemenu",
+  "version": "0.1.0",
+  "description": "One menu to start new Claude/Codex sessions in a project, or search + resume existing ones",
+  "type": "module",
+  "license": "MIT",
+  "author": "Roy Padina",
+  "bin": {
+    "cm": "bin/cm",
+    "cld": "bin/cld",
+    "ccsm": "bin/ccsm"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "config.example.toml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "ink": "^5.0.1",
+    "ink-text-input": "^6.0.0",
+    "react": "^18.3.1",
+    "smol-toml": "^1.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "ink-testing-library": "^4.0.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.22.3",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
