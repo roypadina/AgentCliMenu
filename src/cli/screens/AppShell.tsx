@@ -4,7 +4,7 @@ import { NewScreen } from './NewScreen.js';
 import { App as ResumeApp } from '../tui.js';
 import { setScreenResult } from '../router.js';
 import { listSessions } from '../../core/sessionRepo.js';
-import type { ClaudeMenuConfig, ConfigError, ConfigWarning } from '../../core/config/types.js';
+import type { AgentCliMenuConfig, ConfigError, ConfigWarning } from '../../core/config/types.js';
 import type { ProjectDir } from '../../core/groupScan.js';
 import type { SessionRecord } from '../../core/types.js';
 
@@ -12,7 +12,7 @@ export type Tab = 'new' | 'resume';
 
 interface AppShellProps {
   initialTab: Tab;
-  config?: ClaudeMenuConfig;
+  config?: AgentCliMenuConfig;
   warnings: ConfigWarning[];
   projects: ProjectDir[][];
   configError?: ConfigError;

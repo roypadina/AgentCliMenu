@@ -4,10 +4,10 @@ import { render } from 'ink-testing-library';
 import { NewScreen } from '../../src/cli/screens/NewScreen.js';
 import { AppShell } from '../../src/cli/screens/AppShell.js';
 import { ConfigError } from '../../src/core/config/types.js';
-import type { ClaudeMenuConfig } from '../../src/core/config/types.js';
+import type { AgentCliMenuConfig } from '../../src/core/config/types.js';
 import type { ProjectDir } from '../../src/core/groupScan.js';
 
-const config: ClaudeMenuConfig = {
+const config: AgentCliMenuConfig = {
   groups: [
     { name: 'Frontend', path: '/code/fe', pathRaw: '~/code/fe', color: '#6C91BF' },
     { name: 'Backend', path: '/code/be', pathRaw: '~/code/be', color: '#A855F7' },

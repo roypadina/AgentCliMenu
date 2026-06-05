@@ -2,7 +2,7 @@ import { expandPath } from './paths.js';
 import { DEFAULT_COLOR, DEFAULT_THEME, DEFAULT_GUI } from './defaults.js';
 import {
   ConfigError,
-  type ClaudeMenuConfig,
+  type AgentCliMenuConfig,
   type ConfigWarning,
   type GroupConfig,
   type IdeConfig,
@@ -54,13 +54,13 @@ function buildTheme(raw: unknown): ThemeConfig {
 }
 
 /**
- * Validate a parsed-TOML object into a ClaudeMenuConfig + warnings.
+ * Validate a parsed-TOML object into a AgentCliMenuConfig + warnings.
  * Throws ConfigError(6) only on top-level shape errors. Everything else degrades + warns.
  */
 export function validateConfig(
   rawInput: unknown,
   opts: ValidateOptions,
-): { config: ClaudeMenuConfig; warnings: ConfigWarning[] } {
+): { config: AgentCliMenuConfig; warnings: ConfigWarning[] } {
   const warnings: ConfigWarning[] = [];
   if (rawInput !== undefined && (typeof rawInput !== 'object' || rawInput === null || Array.isArray(rawInput))) {
     throw new ConfigError(6, 'config: top-level must be a TOML table');
@@ -143,7 +143,7 @@ export function validateConfig(
     hotkey: asString(guiRaw.hotkey),
   };
 
-  const config: ClaudeMenuConfig = {
+  const config: AgentCliMenuConfig = {
     groups,
     tools,
     ides,

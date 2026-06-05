@@ -29,7 +29,7 @@ export function buildProgram(): Command {
   const program = new Command();
   program
     .name('cm')
-    .description('ClaudeMenu — new sessions in a project, or search + resume existing ones')
+    .description('AgentCliMenu — new sessions in a project, or search + resume existing ones')
     .version('0.1.0');
 
   program

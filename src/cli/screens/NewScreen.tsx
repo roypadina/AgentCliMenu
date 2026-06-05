@@ -10,11 +10,11 @@ import {
   type LaunchPlan,
 } from '../../core/launchSpec.js';
 import { getTool } from '../../core/config/loadConfig.js';
-import type { ClaudeMenuConfig, ConfigError, ConfigWarning } from '../../core/config/types.js';
+import type { AgentCliMenuConfig, ConfigError, ConfigWarning } from '../../core/config/types.js';
 import type { ProjectDir } from '../../core/groupScan.js';
 
 interface NewScreenProps {
-  config?: ClaudeMenuConfig;
+  config?: AgentCliMenuConfig;
   warnings: ConfigWarning[];
   projects: ProjectDir[][];
   configError?: ConfigError;

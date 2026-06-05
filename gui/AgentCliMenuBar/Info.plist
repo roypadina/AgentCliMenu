@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>ClaudeMenu</string>
+    <string>AgentCliMenu</string>
     <key>CFBundleDisplayName</key>
-    <string>ClaudeMenu</string>
+    <string>AgentCliMenu</string>
     <key>CFBundleIdentifier</key>
-    <string>com.claudemenu.menubar</string>
+    <string>com.agentclimenu.menubar</string>
     <key>CFBundleVersion</key>
     <string>0.1.0</string>
     <key>CFBundleShortVersionString</key>
@@ -15,12 +15,12 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
-    <string>ClaudeMenuBar</string>
+    <string>AgentCliMenuBar</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>ClaudeMenu opens your terminal to run the cm launcher.</string>
+    <string>AgentCliMenu opens your terminal to run the cm launcher.</string>
 </dict>
 </plist>

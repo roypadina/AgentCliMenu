@@ -1,15 +1,15 @@
-# ClaudeMenu — Mac GUI
+# AgentCliMenu — Mac GUI
 
 A native menu-bar + window app (SwiftUI, `LSUIElement`) that **is** the menu — it shows your
 projects and sessions in a real UI and opens the chosen one in your configured terminal. It is a
 thin view: all data + launching + config comes from `cm gui …`, so the GUI never parses TOML or
-reads `~/.claude` itself. The GUI and the terminal TUI share one config (`~/.config/claudemenu/config.toml`).
+reads `~/.claude` itself. The GUI and the terminal TUI share one config (`~/.config/agentclimenu/config.toml`).
 
 ## Build / run
 
 ```sh
-./build-app.sh                 # → gui/ClaudeMenu.app (release, ad-hoc signed)
-open ./ClaudeMenu.app          # ✦ appears in the menu bar
+./build-app.sh                 # → gui/AgentCliMenu.app (release, ad-hoc signed)
+open ./AgentCliMenu.app          # ✦ appears in the menu bar
 ```
 
 `cm` must be on `PATH` (or at `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`). Until brew

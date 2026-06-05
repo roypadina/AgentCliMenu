@@ -5,7 +5,7 @@ import { validateConfig } from './validate.js';
 import { DEFAULT_CONFIG, DEFAULT_RESERVED_KEYS, DEFAULT_TOOLS, DEFAULT_COLOR } from './defaults.js';
 import {
   ConfigError,
-  type ClaudeMenuConfig,
+  type AgentCliMenuConfig,
   type LoadConfigResult,
   type ToolConfig,
 } from './types.js';
@@ -91,14 +91,14 @@ export function loadConfig(opts: LoadConfigOptions = {}): LoadConfigResult {
 }
 
 /** Resolve a tool by name: config > built-in defaults > synthesized (run the name itself). */
-export function getTool(config: ClaudeMenuConfig, name: string): ToolConfig {
+export function getTool(config: AgentCliMenuConfig, name: string): ToolConfig {
   const found = config.tools.find(t => t.name === name);
   if (found) return found;
   if (DEFAULT_TOOLS[name]) return DEFAULT_TOOLS[name];
   return { name, runs: name, label: ` ${name} `, color: DEFAULT_COLOR };
 }
 
-function structuredCloneConfig(c: ClaudeMenuConfig): ClaudeMenuConfig {
+function structuredCloneConfig(c: AgentCliMenuConfig): AgentCliMenuConfig {
   return {
     groups: c.groups.map(g => ({ ...g })),
     tools: c.tools.map(t => ({ ...t })),

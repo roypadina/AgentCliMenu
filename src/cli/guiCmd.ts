@@ -10,7 +10,7 @@ import { listProjects } from '../core/groupScan.js';
 import { listSessions, getSession } from '../core/sessionRepo.js';
 import { planTerminal, resolveCustomTemplate } from '../core/terminalLaunch.js';
 import { setGuiTerminal } from './config.js';
-import type { ClaudeMenuConfig } from '../core/config/types.js';
+import type { AgentCliMenuConfig } from '../core/config/types.js';
 
 function readStdin(): Promise<string> {
   return new Promise((resolve) => {
@@ -42,14 +42,14 @@ function spawnDetached(cmd: string, args: string[]): void {
 }
 
 /** Open `command` in the configured terminal, running in `cwd`. */
-export function openSession(command: string, cwd: string, config: ClaudeMenuConfig): void {
+export function openSession(command: string, cwd: string, config: AgentCliMenuConfig): void {
   const plan = planTerminal({
     terminal: config.gui.terminal,
     customTemplate: config.gui.launchCommand,
     command,
     cwd,
   });
-  const dir = mkdtempSync(join(tmpdir(), 'claudemenu-'));
+  const dir = mkdtempSync(join(tmpdir(), 'agentclimenu-'));
   const script = join(dir, 'launch.command');
   writeFileSync(script, plan.scriptBody);
   chmodSync(script, 0o755);
@@ -169,7 +169,7 @@ export function registerGuiCommands(program: Command): void {
       if (c.launchCommand) guiObj.launch_command = c.launchCommand;
       if (c.hotkey) guiObj.hotkey = c.hotkey;
       obj.gui = guiObj;
-      const text = `# ClaudeMenu config — editable by hand or via the GUI (cm config --edit).\n\n${tomlStringify(obj)}\n`;
+      const text = `# AgentCliMenu config — editable by hand or via the GUI (cm config --edit).\n\n${tomlStringify(obj)}\n`;
       const p = configPath();
       mkdirSync(dirname(p), { recursive: true });
       writeFileSync(p, text);

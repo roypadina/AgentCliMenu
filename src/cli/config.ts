@@ -44,7 +44,7 @@ export function setGuiTerminal(value: string, command?: string): string {
 export function registerConfigCommands(program: Command): void {
   program
     .command('config')
-    .description('manage the ClaudeMenu config')
+    .description('manage the AgentCliMenu config')
     .option('--setup', 'create the config from the example')
     .option('--edit', 'open the config in $EDITOR')
     .option('--path', 'print the config path')

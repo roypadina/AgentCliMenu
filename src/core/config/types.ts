@@ -1,4 +1,4 @@
-// ClaudeMenu config model. Pure data — no ink, no fs here (see loadConfig.ts).
+// AgentCliMenu config model. Pure data — no ink, no fs here (see loadConfig.ts).
 
 export interface GroupConfig {
   name: string;
@@ -46,7 +46,7 @@ export interface GuiConfig {
   hotkey?: string;
 }
 
-export interface ClaudeMenuConfig {
+export interface AgentCliMenuConfig {
   groups: GroupConfig[];
   tools: ToolConfig[];
   ides: IdeConfig[];
@@ -71,7 +71,7 @@ export interface ConfigWarning {
 }
 
 export interface LoadConfigResult {
-  config: ClaudeMenuConfig;
+  config: AgentCliMenuConfig;
   warnings: ConfigWarning[];
   source: 'file' | 'default';
   path: string;

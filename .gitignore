@@ -6,5 +6,5 @@ dist/
 coverage/
 
 # GUI build artifacts
-gui/ClaudeMenuBar/.build/
-gui/ClaudeMenu.app/
+gui/AgentCliMenuBar/.build/
+gui/AgentCliMenu.app/

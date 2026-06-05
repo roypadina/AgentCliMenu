@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClaudeMenuBar",
+    name: "AgentCliMenuBar",
     platforms: [.macOS(.v12)],
     targets: [
         .executableTarget(
-            name: "ClaudeMenuBar",
-            path: "Sources/ClaudeMenuBar"
+            name: "AgentCliMenuBar",
+            path: "Sources/AgentCliMenuBar"
         )
     ]
 )

@@ -1,6 +1,6 @@
-# ClaudeMenu (`cm` / `cld` / `ccsm`)
+# AgentCliMenu (`cm` / `cld` / `ccsm`)
 
-Node.js + TypeScript CLI/TUI. One menu with two halves: **New** — start a new Claude/Codex session in a project dir (configurable groups, frecency sort, IDE/tmux/pull/new-dir keys — the old `cld` launcher); **Resume** — search + resume any existing Claude Code session under `~/.claude/` (the old `ccsm`). Commands: `cm` → root chooser, `cld` → New, `ccsm` → Resume. Local-only, no cloud. Built by merging `cld` (zsh) + `ccsm` into one publishable tool — see `docs/superpowers/plans/2026-06-05-claudemenu.md`.
+Node.js + TypeScript CLI/TUI. One menu with two halves: **New** — start a new Claude/Codex session in a project dir (configurable groups, frecency sort, IDE/tmux/pull/new-dir keys — the old `cld` launcher); **Resume** — search + resume any existing Claude Code session under `~/.claude/` (the old `ccsm`). Commands: `cm` → root chooser, `cld` → New, `ccsm` → Resume. Local-only, no cloud. Built by merging `cld` (zsh) + `ccsm` into one publishable tool — see `docs/superpowers/plans/2026-06-05-agentclimenu.md`.
 
 ## Quick reference
 
@@ -30,7 +30,7 @@ src/core/                 zero ink/react imports — pure data
   search.ts               async generator full-text search across all sessions
   sessionRepo.ts          orchestrator: listSessions / getSession
   transcript.ts           JSONL → TranscriptTurn[] (default/full/head+tail modes)
-  config/                 ClaudeMenu launcher config (TOML, smol-toml)
+  config/                 AgentCliMenu launcher config (TOML, smol-toml)
     types.ts              GroupConfig/ToolConfig/IdeConfig/ThemeConfig, ConfigError
     paths.ts              configPath chain + expandPath (~ / allowlisted $VAR)
     defaults.ts           DEFAULT_TOOLS (cld/cdx), DEFAULT_RESERVED_KEYS, DEFAULT_CONFIG
@@ -66,9 +66,9 @@ docs/superpowers/
 - **Session names** come from JSONL in priority order: `type:custom-title.customTitle` (from `/rename`) → `type:ai-title.aiTitle` (auto-generated) → first user prompt (with tag stripping) → `(no prompt yet)`.
 - **Status detection**: a session is `busy`/`idle` only when a matching `~/.claude/sessions/<pid>.json` file exists, `kill -0 <pid>` succeeds, and `ps -o comm= -p <pid>` matches `/claude/i`. Otherwise `inactive`.
 
-## ClaudeMenu launcher conventions
+## AgentCliMenu launcher conventions
 
-- **Config lives at `~/.config/claudemenu/config.toml`** (chain: `$CLAUDEMENU_CONFIG` → `$XDG_CONFIG_HOME/claudemenu` → `~/.config/claudemenu`). `$CLD_CONFIG` is intentionally NOT honored — clean break from cld.
+- **Config lives at `~/.config/agentclimenu/config.toml`** (chain: `$AGENTCLIMENU_CONFIG` → `$XDG_CONFIG_HOME/agentclimenu` → `~/.config/agentclimenu`). `$CLD_CONFIG` is intentionally NOT honored — clean break from cld.
 - **`smol-toml`** is the one justified extra dep (TOML is core to New, not a one-off helper). It is TOML-1.0 strict; lax cld configs may need a re-seed (`cm config --setup`).
 - **Shell var is lowercase `dir`** — IDE `cmd` / tool `runs` reference `$dir` (matching cld's `eval`). The launch executor sets `dir` (lowercase), shell-quoted, and runs via `${SHELL:-/bin/zsh} -c` (NOT `-lc` — no rc re-source).
 - **New rows show git branch only** (`readGitBranch`, zero-spawn). No dirty count (would require shelling out per row).

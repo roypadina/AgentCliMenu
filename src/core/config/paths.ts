@@ -6,18 +6,18 @@ import type { ConfigWarning } from './types.js';
 
 /**
  * Config path resolution chain:
- *   $CLAUDEMENU_CONFIG  →  $XDG_CONFIG_HOME/claudemenu/config.toml  →  ~/.config/claudemenu/config.toml
+ *   $AGENTCLIMENU_CONFIG  →  $XDG_CONFIG_HOME/agentclimenu/config.toml  →  ~/.config/agentclimenu/config.toml
  * Clean break from cld: $CLD_CONFIG is intentionally NOT honored (it points at the old
  * ~/.config/cld layout whose lax yq-parsed TOML can fail smol-toml's strict parse).
  */
 export function configDir(): string {
   const xdg = process.env.XDG_CONFIG_HOME;
-  if (xdg && xdg.trim()) return join(xdg, 'claudemenu');
-  return join(homedir(), '.config', 'claudemenu');
+  if (xdg && xdg.trim()) return join(xdg, 'agentclimenu');
+  return join(homedir(), '.config', 'agentclimenu');
 }
 
 export function configPath(): string {
-  const explicit = process.env.CLAUDEMENU_CONFIG;
+  const explicit = process.env.AGENTCLIMENU_CONFIG;
   if (explicit && explicit.trim()) return explicit;
   return join(configDir(), 'config.toml');
 }
