@@ -4,7 +4,6 @@ import { renderTable } from './render.js';
 import { renderPeek } from './peek.js';
 import { resume, ResumeError } from './resume.js';
 import { registerConfigCommands } from './config.js';
-import { registerGuiConfigCommand } from './guiConfigCmd.js';
 import { registerGuiCommands } from './guiCmd.js';
 import type { Screen } from './router.js';
 
@@ -91,7 +90,6 @@ export function buildProgram(): Command {
     .action(async (id: string) => { const s = await resolveId(id); console.log(s.jsonlPath); });
 
   registerConfigCommands(program);
-  registerGuiConfigCommand(program);
   registerGuiCommands(program);
   return program;
 }

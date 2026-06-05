@@ -1,8 +1,9 @@
-# ClaudeMenu — Mac menu-bar GUI
+# ClaudeMenu — Mac GUI
 
-A tiny `LSUIElement` menu-bar agent (✦) that opens your configured terminal running `cm`.
-It is a **thin launcher**: it never reads `~/.claude` or parses TOML itself — it asks the
-CLI for everything via `cm gui-config`, then opens a terminal.
+A native menu-bar + window app (SwiftUI, `LSUIElement`) that **is** the menu — it shows your
+projects and sessions in a real UI and opens the chosen one in your configured terminal. It is a
+thin view: all data + launching + config comes from `cm gui …`, so the GUI never parses TOML or
+reads `~/.claude` itself. The GUI and the terminal TUI share one config (`~/.config/claudemenu/config.toml`).
 
 ## Build / run
 
@@ -11,46 +12,36 @@ CLI for everything via `cm gui-config`, then opens a terminal.
 open ./ClaudeMenu.app          # ✦ appears in the menu bar
 ```
 
-`cm` must be on `PATH`. Until the brew formula ships, expose it from the repo root:
+`cm` must be on `PATH` (or at `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`). Until brew
+ships it: `cd .. && npm run build && npm link`. For dev you can also set `$CM_BIN`.
 
-```sh
-cd .. && npm run build && npm link      # puts cm/cld/ccsm on PATH (reversible: npm unlink -g claudemenu)
-```
+- **Left-click ✦** → popover. **Right-click ✦** → Open / Open in window / Quit.
+- **New** tab: groups → all dirs (frecency-sorted, git branch shown). Filter box. Pick a tool
+  (cld/cdx…) bottom-right. Click a dir → opens a session there. **＋ New dir** creates a dir under
+  any existing dir, then opens it.
+- **Resume** tab: searchable list of existing sessions → click to resume.
+- **⚙ Settings**: edit the shared config — groups, tools, IDEs, default tool, and the terminal
+  sessions open in (default = system default; Terminal, iTerm, Ghostty, Warp, kitty, WezTerm,
+  cmux, or a custom command).
+- **macwindow** button: detach the popover into a resizable window.
 
-Menu items: **New session** (`cm new`), **Resume session…** (`cm resume`),
-**Edit config** (`cm config --setup` then opens it), **Quit**.
+## GUI ↔ CLI contract (`cm gui …`)
 
-## GUI ↔ CLI contract
+| Command | Returns / does |
+|---------|----------------|
+| `cm gui projects` | JSON: groups → dirs (branch, age), tools, defaultTool |
+| `cm gui sessions` | JSON: resumable sessions |
+| `cm gui new-dir --base <d> --name <n>` | mkdir, prints `{path}` |
+| `cm gui launch --dir <d> [--tool <t>]` | open the tool in `<d>` in the configured terminal |
+| `cm gui resume --id <id>` | resume a session in the configured terminal |
+| `cm gui terminals` / `set-terminal <v> [--command <t>]` | terminal picker read/write |
+| `cm gui config-get` / `config-save` | full config read / write (shared with the TUI) |
 
-The app runs `cm gui-config --for <root|new|resume>` and parses JSON:
-
-```json
-{
-  "contractVersion": 1,
-  "terminal": "Terminal" | "iTerm" | "custom",
-  "cmBin": "/opt/homebrew/bin/cm",
-  "cmCommand": "/opt/homebrew/bin/cm new",
-  "configPath": "~/.config/claudemenu/config.toml",
-  "customTemplate": null,
-  "entry": "new",
-  "warnings": []
-}
-```
-
-- `terminal` comes from the `[gui]` table in the config.
-- `cmCommand` is the full, path-quoted shell command for the entry. The app passes it to
-  `osascript` as an **argv element** (`-- <cmCommand>`), never interpolated into the script
-  body, so a command with quotes/`;`/spaces can't break or inject AppleScript.
-- All Swift `Codable` fields are optional + there's a `contractVersion`, so the CLI can add
-  fields without breaking an older app. Never rename a field.
-
-## cm resolution
-
-The Swift side probes a fixed list (it can't rely on a GUI's minimal `PATH`):
-`/opt/homebrew/bin/cm`, `/usr/local/bin/cm`, `~/.local/bin/cm`. `$CM_BIN` overrides for dev
-(e.g. `CM_BIN="node /path/to/repo/bin/cm"`). If none resolve, it falls back to `cm` on PATH.
+The terminal opener writes a temp `*.command` (`cd <dir>; exec <cmd>`) and:
+`default` → `open <script>` (system default terminal) · app name → `open -a <App> <script>` ·
+`custom` → runs `launch_command` with `{{script}}` / `{{cmd}}` / `{{dir}}`.
 
 ## Notes
 
-- Not notarized — ad-hoc signed for local/team use (same as Cloney). A future brew cask can ship it.
-- `terminal = "custom"` uses `launch_command` from `[gui]` with `{{cmd}}` substituted, run via `/bin/sh -c`.
+- Ad-hoc signed for local/team use (not notarized) — a future brew cask can ship it.
+- `CM_GUI_SHOW_WINDOW=1` opens the window on launch (used for headless screenshots).

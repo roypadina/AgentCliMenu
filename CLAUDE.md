@@ -111,7 +111,10 @@ Then drop a leading `/word` or `/skill:command ` prefix from the first user prom
 - Windows support (`~/.claude` location and `kill -0`/`ps` semantics differ).
 - File-watcher / live auto-refresh (`r` key manual refresh only).
 - True fuzzy match (current search is whitespace-split AND of case-insensitive substrings).
-- Electron/Tauri/web GUI. (A native Swift menu-bar GUI lives in `gui/` — a thin launcher that
-  shells `cm gui-config` and opens a terminal; it never reads `~/.claude` or parses TOML itself.)
+- Electron/Tauri/web GUI. (A native SwiftUI menu-bar + window GUI lives in `gui/` — the picker
+  itself: New/Resume lists, new-dir, and a full config editor. It's a thin view over `cm gui …`
+  (projects/sessions/new-dir/launch/resume/terminals/config-get/config-save) and never reads
+  `~/.claude` or parses TOML itself. Sessions open in the configured terminal; config is shared
+  with the TUI.)
 - Session deletion, archival, tagging, favorites.
 - Multi-window resume dispatch via Terminal.app / iTerm AppleScript.

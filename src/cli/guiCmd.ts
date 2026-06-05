@@ -1,14 +1,25 @@
 import { writeFileSync, chmodSync, mkdtempSync, mkdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import type { Command } from 'commander';
-import { loadConfig, getTool } from '../core/config/loadConfig.js';
+import { stringify as tomlStringify } from 'smol-toml';
+import { loadConfig, getTool, clearConfigCache } from '../core/config/loadConfig.js';
+import { configPath } from '../core/config/paths.js';
 import { listProjects } from '../core/groupScan.js';
 import { listSessions, getSession } from '../core/sessionRepo.js';
 import { planTerminal, resolveCustomTemplate } from '../core/terminalLaunch.js';
 import { setGuiTerminal } from './config.js';
 import type { ClaudeMenuConfig } from '../core/config/types.js';
+
+function readStdin(): Promise<string> {
+  return new Promise((resolve) => {
+    let d = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (c) => { d += c; });
+    process.stdin.on('end', () => resolve(d));
+  });
+}
 
 const SHELL = process.env.SHELL ?? '/bin/zsh';
 
@@ -123,6 +134,45 @@ export function registerGuiCommands(program: Command): void {
       const bin = process.env.CCSM_CLAUDE_BIN ?? 'claude';
       openSession(`${bin} --resume ${s.id} --dangerously-skip-permissions`, s.cwd, config);
       console.log(JSON.stringify({ ok: true, id: s.id, cwd: s.cwd }));
+    });
+
+  gui.command('config-get')
+    .description('the full editable config as JSON (shared with the TUI)')
+    .action(() => {
+      const { config } = loadConfig();
+      console.log(JSON.stringify({
+        defaultTool: config.defaultTool,
+        terminal: config.gui.terminal,
+        launchCommand: config.gui.launchCommand ?? null,
+        groups: config.groups.map((g) => ({ name: g.name, path: g.pathRaw, color: g.color })),
+        tools: config.tools.map((t) => ({ name: t.name, runs: t.runs, label: t.label, color: t.color })),
+        ides: config.ides.map((i) => ({ key: i.key, label: i.label, cmd: i.cmd })),
+      }));
+    });
+
+  gui.command('config-save')
+    .description('write the full config (reads editable JSON from stdin)')
+    .action(async () => {
+      const c = JSON.parse(await readStdin()) as {
+        defaultTool?: string; terminal?: string; launchCommand?: string | null;
+        groups?: Array<{ name: string; path: string; color: string }>;
+        tools?: Array<{ name: string; runs: string; label: string; color: string }>;
+        ides?: Array<{ key: string; label: string; cmd: string }>;
+      };
+      const obj: Record<string, unknown> = {};
+      if (c.defaultTool) obj.default_tool = c.defaultTool;
+      obj.group = (c.groups ?? []).filter((g) => g.name || g.path).map((g) => ({ name: g.name, path: g.path, color: g.color || '#8888aa' }));
+      obj.tool = (c.tools ?? []).filter((t) => t.name).map((t) => ({ name: t.name, runs: t.runs, label: t.label, color: t.color || '#8888aa' }));
+      obj.ide = (c.ides ?? []).filter((i) => i.key).map((i) => ({ key: i.key, label: i.label, cmd: i.cmd }));
+      obj.gui = c.launchCommand
+        ? { terminal: c.terminal || 'default', launch_command: c.launchCommand }
+        : { terminal: c.terminal || 'default' };
+      const text = `# ClaudeMenu config — editable by hand or via the GUI (cm config --edit).\n\n${tomlStringify(obj)}\n`;
+      const p = configPath();
+      mkdirSync(dirname(p), { recursive: true });
+      writeFileSync(p, text);
+      clearConfigCache();
+      console.log(JSON.stringify({ ok: true, path: p }));
     });
 
   gui.command('set-terminal <value>')
