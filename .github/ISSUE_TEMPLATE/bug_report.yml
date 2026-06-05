@@ -1,0 +1,44 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `ccsm`
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: How were you running it?
+      options:
+        - cm (terminal)
+        - cld (terminal)
+        - ccsm (terminal)
+        - Mac GUI
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: macOS + Node versions
+      placeholder: "macOS 14.5, Node 20.11"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output / logs (optional)
+      description: Anything printed to the terminal, with sensitive paths redacted.
+      render: shell

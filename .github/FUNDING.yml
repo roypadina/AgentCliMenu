@@ -1,0 +1,4 @@
+# Shows a "Sponsor" button on the repo. https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+# Buy Me a Coffee dropped: it can't pay out to Israel. Ko-fi (PayPal) works.
+ko_fi: roypadina       # https://ko-fi.com/roypadina  (PayPal payout — works in Israel)
+# github: [roypadina]  # GitHub Sponsors runs on Stripe, which doesn't support Israel — re-add only if enrollment is approved
