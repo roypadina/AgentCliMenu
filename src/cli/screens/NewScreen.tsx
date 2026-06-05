@@ -10,6 +10,7 @@ import {
   type LaunchPlan,
 } from '../../core/launchSpec.js';
 import { getTool } from '../../core/config/loadConfig.js';
+import { fuzzyMatch } from '../../core/fuzzy.js';
 import type { AgentCliMenuConfig, ConfigError, ConfigWarning } from '../../core/config/types.js';
 import type { ProjectDir } from '../../core/groupScan.js';
 
@@ -45,14 +46,20 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
 
   const groups = config?.groups ?? [];
 
-  // Build rows + selectable dir list (filtered).
+  // Build rows + selectable dir list — fuzzy-ranked within each group when filtering.
   const { rows, dirs } = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const match = (d: ProjectDir) => !q || d.name.toLowerCase().includes(q) || d.path.toLowerCase().includes(q);
+    const q = query.trim();
     const rows: Row[] = [];
     const dirs: ProjectDir[] = [];
     groups.forEach((g, gi) => {
-      const groupDirs = (projects[gi] ?? []).filter(match);
+      let groupDirs = projects[gi] ?? [];
+      if (q) {
+        groupDirs = groupDirs
+          .map((d) => ({ d, m: fuzzyMatch(q, d.name) ?? fuzzyMatch(q, d.path) }))
+          .filter((x) => x.m)
+          .sort((a, b) => b.m!.score - a.m!.score)
+          .map((x) => x.d);
+      }
       if (groupDirs.length === 0) return;
       rows.push({ kind: 'header', name: g.name, color: g.color });
       for (const d of groupDirs) { rows.push({ kind: 'dir', dir: d }); dirs.push(d); }
@@ -159,7 +166,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
         <Text bold color={hexColor(tool.color)}>  {tool.name} ›</Text>
         <Text dimColor>  tool </Text><Text color="cyan">{tool.name}</Text>
         {tools.length > 1 ? <Text dimColor> (⇧⇥)</Text> : null}
-        {query ? (<><Text dimColor>   /</Text><Text color="yellow">{query}</Text></>) : null}
+        {query ? (<><Text dimColor>   /</Text><Text color="yellow">{query}</Text><Text dimColor>  ({dirs.length})</Text></>) : null}
       </Box>
 
       {warnings.length > 0 ? (

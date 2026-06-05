@@ -7,6 +7,7 @@ import { listSessions } from '../core/sessionRepo.js';
 import { readTranscript } from '../core/transcript.js';
 import { searchSessions, type SearchMatch } from '../core/search.js';
 import { formatDate, timeAgo } from './format.js';
+import { fuzzyRank } from '../core/fuzzy.js';
 import type { SessionRecord, SessionStatus, TranscriptTurn } from '../core/types.js';
 
 const STATUS_DOT: Record<SessionStatus, string> = { busy: '●', idle: '●', inactive: '○' };
@@ -64,14 +65,11 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const [searchCursor, setSearchCursor] = useState(0);
   const searchAbortRef = useRef<AbortController | null>(null);
 
-  const filtered = records.filter(r => {
-    if (!filter) return true;
-    const q = filter.toLowerCase();
-    return r.name.toLowerCase().includes(q)
-      || r.cwd.toLowerCase().includes(q)
-      || r.id.includes(q);
-  });
+  const filtered = filter
+    ? fuzzyRank(filter, records, r => `${r.name}  ${tildify(r.cwd)}  ${r.id}`).map(x => x.item)
+    : records;
   const clamped = Math.min(cursor, Math.max(0, filtered.length - 1));
+  const [confirmResumeId, setConfirmResumeId] = useState<string | null>(null);
   const activeCount = records.filter(r => r.active).length;
 
   const cols = process.stdout.columns ?? 120;
@@ -176,9 +174,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     }
     if (key.tab && onSwitchTab) { onSwitchTab(); return; }
     if (input === 'q') { quit(); return; }
-    if (key.escape) { back(); return; }
-    if (key.upArrow || input === 'k') setCursor(c => Math.max(0, c - 1));
-    if (key.downArrow || input === 'j') setCursor(c => Math.min(filtered.length - 1, c + 1));
+    if (key.escape) { if (confirmResumeId) { setConfirmResumeId(null); return; } back(); return; }
+    if (key.upArrow || input === 'k') { setCursor(c => Math.max(0, c - 1)); setConfirmResumeId(null); }
+    if (key.downArrow || input === 'j') { setCursor(c => Math.min(filtered.length - 1, c + 1)); setConfirmResumeId(null); }
     if (input === '/') setMode('filter');
     if (input === 's') {
       setSearchInput(searchQuery);
@@ -199,6 +197,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     if (key.return) {
       const s = filtered[clamped];
       if (!s) return;
+      // cwd-confidence gate: decoded cwd may be wrong — confirm before resuming into it.
+      if (!s.cwdDecodeConfident && confirmResumeId !== s.id) { setConfirmResumeId(s.id); return; }
       doResume(s);
     }
   });
@@ -270,11 +270,25 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
 
       {mode === 'list' || mode === 'filter' ? (
         <Box marginTop={1} flexDirection="column">
+          {start > 0 ? <Text dimColor>  ▲ {start} more above</Text> : null}
           {view.map((r, i) => {
             const isSel = start + i === clamped;
             return <Card key={r.id} r={r} selected={isSel} />;
           })}
-          {filtered.length === 0 ? <Text dimColor>(no matching sessions)</Text> : null}
+          {start + visibleCards < filtered.length
+            ? <Text dimColor>  ▼ {filtered.length - (start + visibleCards)} more below</Text> : null}
+          {filtered.length === 0 ? (
+            <Text dimColor>{records.length === 0 ? '(no sessions yet)' : `(no matches for "${filter}")`}</Text>
+          ) : null}
+          {confirmResumeId && filtered[clamped]?.id === confirmResumeId ? (
+            <Box marginTop={1}>
+              <Text color="yellow">⚠ cwd uncertain for this session — </Text>
+              <Text bold color="yellow">Enter</Text>
+              <Text color="yellow"> again to resume anyway, </Text>
+              <Text bold color="yellow">esc</Text>
+              <Text color="yellow"> to cancel</Text>
+            </Box>
+          ) : null}
         </Box>
       ) : null}
 
@@ -439,6 +453,7 @@ function Card({ r, selected }: { r: SessionRecord; selected: boolean }) {
         <Text bold color={selected ? 'yellow' : 'gray'}>{marker} </Text>
         <Text color={STATUS_COLOR[r.status]} bold>{STATUS_DOT[r.status]}</Text>
         <Text>  </Text>
+        {!r.cwdDecodeConfident ? <Text color="yellow">⚠ </Text> : null}
         <Text bold color={selected ? 'cyan' : 'white'}>{r.name}</Text>
         {statusLabel ? (
           <>
