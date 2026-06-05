@@ -25,6 +25,7 @@ struct Session: Codable, Identifiable {
 struct TerminalOpt: Codable, Identifiable {
     let id: String; let label: String; let installed: Bool; let selected: Bool
 }
+struct PeekTurn: Codable { let role: String; let kind: String; let text: String }
 struct TerminalsResponse: Codable {
     let terminals: [TerminalOpt]; let current: String; let customCommand: String?
 }
@@ -46,6 +47,7 @@ struct ConfigDTO: Codable {
 extension Notification.Name {
     static let cmReload = Notification.Name("cmReload")          // re-fetch projects/sessions
     static let cmHotkeyChanged = Notification.Name("cmHotkeyChanged") // re-register the global shortcut
+    static let cmActionFailed = Notification.Name("cmActionFailed")   // a fire-and-forget launch/resume failed (object = message)
 }
 
 enum CmError: Error { case notFound, failed(String) }
@@ -92,13 +94,27 @@ enum Cm {
     }
 
     private static func runVoid(_ args: String) {
-        DispatchQueue.global().async { _ = try? run(args) }
+        DispatchQueue.global().async {
+            do { _ = try run(args) } catch { postFailure(error) }
+        }
+    }
+
+    /// A fire-and-forget action failed — hop to main and post so the UI can surface it.
+    private static func postFailure(_ error: Error) {
+        let msg: String
+        switch error {
+        case CmError.notFound: msg = "cm not found. Install it (brew or npm link)."
+        case CmError.failed(let m): msg = m.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "the action failed." : m
+        default: msg = "\(error)"
+        }
+        DispatchQueue.main.async { NotificationCenter.default.post(name: .cmActionFailed, object: msg) }
     }
 
     // ── API ──
     static func projects() async throws -> ProjectsResponse { try await runAsync("projects", ProjectsResponse.self) }
     static func sessions() async throws -> [Session] { try await runAsync("sessions", [Session].self) }
     static func terminals() async throws -> TerminalsResponse { try await runAsync("terminals", TerminalsResponse.self) }
+    static func peek(id: String) async throws -> [PeekTurn] { try await runAsync("peek --id '\(esc(id))'", [PeekTurn].self) }
 
     static func launch(dir: String, tool: String) { runVoid("launch --dir '\(esc(dir))' --tool '\(esc(tool))'") }
     static func resume(id: String) { runVoid("resume --id '\(esc(id))'") }
@@ -133,10 +149,12 @@ enum Cm {
     }
     static func newDirThenLaunch(base: String, name: String, tool: String) {
         DispatchQueue.global().async {
-            guard let data = try? run("new-dir --base '\(esc(base))' --name '\(esc(name))'"),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let path = obj["path"] as? String else { return }
-            _ = try? run("launch --dir '\(esc(path))' --tool '\(esc(tool))'")
+            do {
+                let data = try run("new-dir --base '\(esc(base))' --name '\(esc(name))'")
+                guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let path = obj["path"] as? String else { postFailure(CmError.failed("couldn’t create the directory")); return }
+                _ = try run("launch --dir '\(esc(path))' --tool '\(esc(tool))'")
+            } catch { postFailure(error) }
         }
     }
 

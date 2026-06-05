@@ -27,7 +27,7 @@ function tildify(p: string): string {
   return p.startsWith(home) ? '~' + p.slice(home.length) : p;
 }
 
-type Mode = 'list' | 'filter' | 'peek' | 'search-input' | 'search-results';
+type Mode = 'list' | 'filter' | 'peek' | 'search-input' | 'search-results' | 'help';
 
 interface AppProps {
   initial: SessionRecord[];
@@ -58,6 +58,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const [filter, setFilter] = useState('');
   const [peek, setPeek] = useState<TranscriptTurn[] | null>(null);
   const [peekOffset, setPeekOffset] = useState(0);
+  const [peekFrom, setPeekFrom] = useState<'list' | 'search'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [searchResults, setSearchResults] = useState<SearchMatch[]>([]);
@@ -111,6 +112,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   useEffect(() => () => { searchAbortRef.current?.abort(); }, []);
 
   useInput((input, key) => {
+    if (mode === 'help') { setMode('list'); return; } // any key closes
     if (mode === 'filter') {
       if (key.return || key.escape) setMode('list');
       return;
@@ -161,6 +163,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
           readTranscript(hit.session.jsonlPath)
             .then(turns => { setPeek(turns); setPeekOffset(0); })
             .catch(() => { setPeek([]); setPeekOffset(0); });
+          setPeekFrom('search');
           setMode('peek');
         }
       }
@@ -174,7 +177,13 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     }
     if (key.tab && onSwitchTab) { onSwitchTab(); return; }
     if (input === 'q') { quit(); return; }
-    if (key.escape) { if (confirmResumeId) { setConfirmResumeId(null); return; } back(); return; }
+    if (input === '?') { setMode('help'); return; }
+    if (key.escape) {
+      if (confirmResumeId) { setConfirmResumeId(null); return; }
+      if (filter) { setFilter(''); setCursor(0); return; } // clear filter first (matches New + GUI)
+      back();
+      return;
+    }
     if (key.upArrow || input === 'k') { setCursor(c => Math.max(0, c - 1)); setConfirmResumeId(null); }
     if (key.downArrow || input === 'j') { setCursor(c => Math.min(filtered.length - 1, c + 1)); setConfirmResumeId(null); }
     if (input === '/') setMode('filter');
@@ -188,6 +197,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         readTranscript(s.jsonlPath)
           .then(turns => { setPeek(turns); setPeekOffset(0); })
           .catch(() => { setPeek([]); setPeekOffset(0); });
+        setPeekFrom('list');
         setMode('peek');
       }
     }
@@ -350,26 +360,44 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         </Box>
       ) : null}
 
+      {mode === 'help' ? (
+        <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
+          <Text bold color="cyan">keys — Resume</Text>
+          <HelpRow k="↑/↓  j/k" v="move selection" />
+          <HelpRow k="enter" v="resume the selected session" />
+          <HelpRow k="p" v="peek transcript (↑/↓ · g/G · pgup/pgdn to scroll)" />
+          <HelpRow k="/" v="fuzzy-filter the list" />
+          <HelpRow k="s" v="full-text search across all transcripts" />
+          <HelpRow k="r" v="refresh sessions" />
+          <HelpRow k="⇥ tab" v="switch to New" />
+          <HelpRow k="q" v="quit" />
+          <Box marginTop={1}><Text dimColor>⚠ = decoded cwd uncertain — Enter twice to resume anyway.  press any key to close</Text></Box>
+        </Box>
+      ) : null}
+
       {mode === 'peek' && peek ? (() => {
+        const wide = cols >= 120;
+        const railW = wide ? 34 : 0;
+        const peekCols = wide ? cols - railW - 5 : cols;
         const total = peek.length;
         const end = total - peekOffset;
         const sliceStart = Math.max(0, end - peekWindow);
         const visible = peek.slice(sliceStart, end);
-        const sel = mode === 'peek'
-          ? (searchResults[searchCursor]?.session ?? filtered[clamped])
-          : null;
-        return (
-          <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
+        const fromSearch = peekFrom === 'search' && !!searchResults[searchCursor];
+        const sel = fromSearch ? searchResults[searchCursor].session : filtered[clamped];
+
+        const peekBox = (
+          <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} flexGrow={1}>
             <Box>
               <Text bold color="cyan">peek </Text>
               {sel ? <Text bold color="white">{sel.name}</Text> : null}
-              <Text dimColor>   showing </Text>
+              <Text dimColor>   </Text>
               <Text color="cyan">{sliceStart + 1}</Text>
               <Text dimColor>–</Text>
               <Text color="cyan">{end}</Text>
               <Text dimColor> of </Text>
               <Text color="cyan">{total}</Text>
-              <Text dimColor>   ↑ older  ·  ↓ newer  ·  pgup/pgdn  ·  g top  ·  G bottom  ·  esc close</Text>
+              <Text dimColor>   ↑ older · ↓ newer · pgup/pgdn · g/G · esc close</Text>
             </Box>
             {visible.length === 0 ? (
               <Text dimColor>(empty)</Text>
@@ -383,7 +411,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
                     : 'gray';
               const oneLine = t.text.replace(/[\r\n]+/g, ' ⏎ ').replace(/\s+/g, ' ').trim();
               const tag = `[${t.role}] `;
-              const budget = Math.max(20, cols - 6 - tag.length);
+              const budget = Math.max(20, peekCols - 6 - tag.length);
               const text = oneLine.length > budget ? oneLine.slice(0, budget - 1) + '…' : oneLine;
               return (
                 <Box key={sliceStart + i}>
@@ -394,9 +422,43 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
             })}
           </Box>
         );
+
+        if (!wide) return <Box marginTop={1}>{peekBox}</Box>;
+
+        // Wide terminal: keep a slim session rail on the left for context while reading.
+        const list = fromSearch ? searchResults.map((m) => m.session) : filtered;
+        const cur = fromSearch ? searchCursor : clamped;
+        const railStart = Math.max(0, Math.min(Math.max(0, list.length - peekWindow), cur - Math.floor(peekWindow / 2)));
+        const railSlice = list.slice(railStart, railStart + peekWindow);
+        return (
+          <Box marginTop={1} flexDirection="row">
+            <Box flexDirection="column" width={railW} marginRight={1}>
+              {railSlice.map((r, i) => {
+                const isSel = railStart + i === cur;
+                const name = r.name.length > railW - 4 ? r.name.slice(0, railW - 5) + '…' : r.name;
+                return (
+                  <Box key={r.id}>
+                    <Text bold color={isSel ? 'yellow' : 'gray'}>{isSel ? '▶ ' : '  '}</Text>
+                    <Text color={STATUS_COLOR[r.status]}>{STATUS_DOT[r.status]}</Text>
+                    <Text> </Text>
+                    <Text color={isSel ? 'cyan' : 'white'}>{name}</Text>
+                  </Box>
+                );
+              })}
+            </Box>
+            {peekBox}
+          </Box>
+        );
       })() : null}
 
-      {mode !== 'peek' && mode !== 'search-input' ? (
+      {mode === 'peek' && !peek ? (
+        <Box marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
+          <Text bold color="cyan">peek </Text>
+          <Text dimColor>loading transcript…</Text>
+        </Box>
+      ) : null}
+
+      {mode !== 'peek' && mode !== 'search-input' && mode !== 'help' ? (
         <Box marginTop={1}>
           {mode === 'search-results' ? (
             <>
@@ -431,6 +493,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
               <Text color="white">search</Text>
               <Text dimColor>  ·  r </Text>
               <Text color="white">refresh</Text>
+              <Text dimColor>  ·  ? </Text>
+              <Text color="white">help</Text>
               <Text dimColor>  ·  q </Text>
               <Text color="white">quit</Text>
             </>
@@ -480,6 +544,15 @@ function Card({ r, selected }: { r: SessionRecord; selected: boolean }) {
           </>
         ) : null}
       </Box>
+    </Box>
+  );
+}
+
+function HelpRow({ k, v }: { k: string; v: string }) {
+  return (
+    <Box>
+      <Box width={12}><Text color="cyan">{k}</Text></Box>
+      <Text dimColor>{v}</Text>
     </Box>
   );
 }

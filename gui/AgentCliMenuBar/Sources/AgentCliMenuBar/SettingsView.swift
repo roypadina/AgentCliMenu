@@ -1,6 +1,17 @@
 import SwiftUI
 import AppKit
 
+extension Color {
+    /// "#RRGGBB" from this Color via sRGB NSColor. Returns nil if it can't be expressed in sRGB.
+    func toHex() -> String? {
+        guard let rgb = NSColor(self).usingColorSpace(.sRGB) else { return nil }
+        let r = Int(round(rgb.redComponent * 255))
+        let g = Int(round(rgb.greenComponent * 255))
+        let b = Int(round(rgb.blueComponent * 255))
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
+}
+
 private struct EGroup: Identifiable { let id = UUID(); var name: String; var path: String; var color: String }
 private struct ETool: Identifiable { let id = UUID(); var name: String; var runs: String; var label: String; var color: String }
 private struct EIde: Identifiable { let id = UUID(); var key: String; var label: String; var cmd: String }
@@ -74,6 +85,7 @@ struct SettingsView: View {
                     TextField("name", text: $g.name).frame(width: 100)
                     TextField("~/path", text: $g.path)
                     Button("…") { if let p = pickFolder() { $g.path.wrappedValue = p } }
+                    ColorPicker("", selection: colorBinding($g.color)).labelsHidden().frame(width: 40)
                     TextField("#hex", text: $g.color).frame(width: 78)
                     removeButton { groups.removeAll { $0.id == g.id } }
                 }
@@ -121,6 +133,15 @@ struct SettingsView: View {
     private func hint(_ s: String) -> some View { Text(s).font(.caption).foregroundColor(.secondary) }
     private func addButton(_ a: @escaping () -> Void) -> some View { Button(action: a) { Image(systemName: "plus.circle") }.buttonStyle(.borderless) }
     private func removeButton(_ a: @escaping () -> Void) -> some View { Button(action: a) { Image(systemName: "minus.circle").foregroundColor(.red) }.buttonStyle(.borderless) }
+
+    /// Two-way bridge between a "#RRGGBB" string field and the native ColorPicker.
+    /// A bad/empty hex shows gray; picking a color writes back a normalized hex.
+    private func colorBinding(_ hex: Binding<String>) -> Binding<Color> {
+        Binding(
+            get: { Color(hex: hex.wrappedValue) },
+            set: { hex.wrappedValue = $0.toHex() ?? hex.wrappedValue }
+        )
+    }
 
     private func pickFolder() -> String? {
         let panel = NSOpenPanel()

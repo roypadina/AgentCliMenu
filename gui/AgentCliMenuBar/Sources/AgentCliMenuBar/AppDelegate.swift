@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKey.onFire = { [weak self] in self?.openWindow() }
         refreshHotkey()
         NotificationCenter.default.addObserver(self, selector: #selector(refreshHotkey), name: .cmHotkeyChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(actionFailed(_:)), name: .cmActionFailed, object: nil)
 
         if ProcessInfo.processInfo.environment["CM_GUI_SHOW_WINDOW"] == "1" { openWindow() }
     }
@@ -93,6 +94,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ProcessInfo.processInfo.environment["CM_GUI_SHOW_WINDOW"] == "1" {
             FileHandle.standardError.write("WINDOW_ID=\(window?.windowNumber ?? -1)\n".data(using: .utf8)!)
         }
+    }
+
+    /// A fire-and-forget launch/resume failed — the popover has already closed, so surface it as an alert.
+    @objc private func actionFailed(_ note: Notification) {
+        let msg = (note.object as? String) ?? "the action failed."
+        NSSound.beep()
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "AgentCliMenu couldn’t open that session"
+        alert.informativeText = msg
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     @objc private func quit() { NSApplication.shared.terminate(nil) }

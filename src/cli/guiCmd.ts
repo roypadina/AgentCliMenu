@@ -8,6 +8,7 @@ import { loadConfig, getTool, clearConfigCache } from '../core/config/loadConfig
 import { configPath } from '../core/config/paths.js';
 import { listProjects } from '../core/groupScan.js';
 import { listSessions, getSession } from '../core/sessionRepo.js';
+import { readTranscript } from '../core/transcript.js';
 import { planTerminal, resolveCustomTemplate } from '../core/terminalLaunch.js';
 import { setGuiTerminal } from './config.js';
 import type { AgentCliMenuConfig } from '../core/config/types.js';
@@ -131,9 +132,29 @@ export function registerGuiCommands(program: Command): void {
         process.exit(matches.length === 0 ? 1 : 2);
       }
       const s = matches[0];
+      // s.id is interpolated into a shell command (terminalLaunch) — refuse anything but the
+      // known session-id charset so a hostile transcript filename can't inject.
+      if (!/^[A-Za-z0-9._-]+$/.test(s.id)) {
+        console.log(JSON.stringify({ ok: false, error: 'invalid id' }));
+        process.exit(3);
+      }
       const bin = process.env.CCSM_CLAUDE_BIN ?? 'claude';
       openSession(`${bin} --resume ${s.id} --dangerously-skip-permissions`, s.cwd, config);
       console.log(JSON.stringify({ ok: true, id: s.id, cwd: s.cwd }));
+    });
+
+  gui.command('peek')
+    .description('transcript tail of a session as JSON turns ({role,kind,text})')
+    .requiredOption('--id <id>')
+    .option('--lines <n>', 'max turns to return (from the end)', '60')
+    .action(async (opts: { id: string; lines: string }) => {
+      const matches = await getSession(opts.id);
+      if (matches.length === 0) { console.log('[]'); return; }
+      if (matches.length > 1) { console.error(JSON.stringify({ error: 'ambiguous', count: matches.length })); process.exit(2); }
+      const turns = await readTranscript(matches[0].jsonlPath);
+      const n = Math.max(1, parseInt(opts.lines, 10) || 60);
+      const tail = turns.slice(-n).map((t) => ({ role: t.role, kind: t.kind, text: t.text }));
+      console.log(JSON.stringify(tail));
     });
 
   gui.command('config-get')

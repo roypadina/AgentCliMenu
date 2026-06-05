@@ -46,7 +46,7 @@ describe('NewScreen', () => {
     expect(f).toContain('Backend');
     expect(f).toContain('web-app');
     expect(f).toContain('api');
-    expect(f).toContain('code'); // ide label in footer
+    expect(f).toContain('keys'); // footer points to the ? help overlay (full keymap incl. IDEs)
   });
 
   it('shows the no-groups hint when empty', () => {

@@ -24,7 +24,7 @@ interface NewScreenProps {
 }
 
 type Row = { kind: 'header'; name: string; color: string } | { kind: 'dir'; dir: ProjectDir };
-type Mode = 'list' | 'nd-base' | 'nd-name';
+type Mode = 'list' | 'nd-base' | 'nd-name' | 'help';
 
 export function NewScreen({ config, warnings, projects, configError, onSwitchTab }: NewScreenProps) {
   const { exit } = useApp();
@@ -70,6 +70,22 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
   const clamped = Math.min(cursor, Math.max(0, dirs.length - 1));
   const selected = dirs[clamped];
 
+  // Viewport: window the header+dir rows around the selection so long lists don't overflow.
+  const termRows = process.stdout.rows ?? 30;
+  const maxVisible = Math.max(4, termRows - 9); // header + warnings + nd/footer + affordances
+  const selRowIdx = selected ? rows.findIndex((r) => r.kind === 'dir' && r.dir === selected) : 0;
+  const winStart = rows.length <= maxVisible
+    ? 0
+    : Math.max(0, Math.min(rows.length - maxVisible, selRowIdx - Math.floor(maxVisible / 2)));
+  const winEnd = Math.min(rows.length, winStart + maxVisible);
+  const view = rows.slice(winStart, winEnd);
+  // If the window opens mid-group, show the owning header once for context (not a sticky header).
+  const ctxHeader = view[0]?.kind === 'dir'
+    ? (() => { for (let i = winStart - 1; i >= 0; i--) { const r = rows[i]; if (r.kind === 'header') return r; } return null; })()
+    : null;
+  const hiddenAbove = rows.slice(0, winStart).filter((r) => r.kind === 'dir').length;
+  const hiddenBelow = rows.slice(winEnd).filter((r) => r.kind === 'dir').length;
+
   const dispatch = (plan: LaunchPlan) => {
     if (plan.returnsToTui) { executePlan(plan); return; } // finder etc — stay in TUI
     finish({ kind: 'launch', plan });
@@ -84,6 +100,8 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
       if (key.escape) finish({ kind: 'quit' });
       return;
     }
+
+    if (mode === 'help') { setMode('list'); return; } // any key closes
 
     if (mode === 'nd-name') {
       if (key.escape) { setMode('list'); setNdName(''); }
@@ -107,6 +125,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
 
     // list mode
     if (key.escape) { if (query) setQuery(''); else finish({ kind: 'quit' }); return; }
+    if (input === '?') { setMode('help'); return; }
     if (key.tab && key.shift) { if (tools.length) setToolIdx((i) => (i + 1) % tools.length); return; }
     if (key.tab) { onSwitchTab?.(); return; }
     if (key.upArrow) { setCursor((c) => Math.max(0, c - 1)); return; }
@@ -173,29 +192,38 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
         <Box><Text color="yellow">⚠ {warnings.length} config warning{warnings.length > 1 ? 's' : ''}</Text></Box>
       ) : null}
 
-      <Box flexDirection="column" marginTop={1}>
-        {rows.length === 0 ? (
-          <Text dimColor>
-            {groups.length === 0
-              ? '(no groups configured — run: cm config --setup, then add [[group]] entries)'
-              : '(no matching project dirs)'}
-          </Text>
-        ) : rows.map((row, i) => {
-          if (row.kind === 'header') {
-            return <Text key={'h' + i} bold color={hexColor(row.color)}>── {row.name} ──────────────────</Text>;
-          }
-          const d = row.dir;
-          const sel = d === selected;
-          return (
-            <Box key={d.path}>
-              <Text bold color={sel ? 'yellow' : 'gray'}>{sel ? '▸ ' : '  '}</Text>
-              <Text bold color={sel ? 'cyan' : 'white'}>{d.name}</Text>
-              <Text dimColor>   {timeAgo(new Date(d.timeMs))}</Text>
-              {d.gitBranch ? (<><Text dimColor>   ⎇ </Text><Text color="magenta">{d.gitBranch}</Text></>) : null}
-            </Box>
-          );
-        })}
-      </Box>
+      {mode === 'help' ? <HelpOverlay ides={config?.ides ?? []} toolName={tool.name} /> : (
+        <Box flexDirection="column" marginTop={1}>
+          {rows.length === 0 ? (
+            <Text dimColor>
+              {groups.length === 0
+                ? '(no groups configured — run: cm config --setup, then add [[group]] entries)'
+                : query ? `(no matches for "${query}")` : '(no matching project dirs)'}
+            </Text>
+          ) : (
+            <>
+              {ctxHeader ? <Text bold color={hexColor(ctxHeader.color)}>── {ctxHeader.name} ──────────────────</Text> : null}
+              {hiddenAbove > 0 ? <Text dimColor>  ▲ {hiddenAbove} more above</Text> : null}
+              {view.map((row, i) => {
+                if (row.kind === 'header') {
+                  return <Text key={'h' + (winStart + i)} bold color={hexColor(row.color)}>── {row.name} ──────────────────</Text>;
+                }
+                const d = row.dir;
+                const sel = d === selected;
+                return (
+                  <Box key={d.path}>
+                    <Text bold color={sel ? 'yellow' : 'gray'}>{sel ? '▸ ' : '  '}</Text>
+                    <Text bold color={sel ? 'cyan' : 'white'}>{d.name}</Text>
+                    <Text dimColor>   {timeAgo(new Date(d.timeMs))}</Text>
+                    {d.gitBranch ? (<><Text dimColor>   ⎇ </Text><Text color="magenta">{d.gitBranch}</Text></>) : null}
+                  </Box>
+                );
+              })}
+              {hiddenBelow > 0 ? <Text dimColor>  ▼ {hiddenBelow} more below</Text> : null}
+            </>
+          )}
+        </Box>
+      )}
 
       {mode === 'nd-base' ? (
         <Box marginTop={1}><Text color="yellow">{ndBasePrompt()}</Text></Box>
@@ -211,18 +239,36 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
         <Box marginTop={1}>
           <Text dimColor>↑/↓ </Text><Text color="white">move</Text>
           <Text dimColor>  ·  ↵ </Text><Text color="white">{tool.name}</Text>
-          {config?.ides.map((ide) => (
-            <React.Fragment key={ide.key}>
-              <Text dimColor>  ·  ^{ide.key.replace('ctrl-', '')} </Text><Text color="white">{ide.label}</Text>
-            </React.Fragment>
-          ))}
-          <Text dimColor>  ·  ^t </Text><Text color="white">tmux</Text>
-          <Text dimColor>  ·  ^p </Text><Text color="white">pull</Text>
-          <Text dimColor>  ·  ^f </Text><Text color="white">finder</Text>
           <Text dimColor>  ·  ^n </Text><Text color="white">new</Text>
-          <Text dimColor>  ·  type to filter  ·  esc back</Text>
+          <Text dimColor>  ·  type to filter  ·  </Text><Text color="white">?</Text><Text dimColor> keys  ·  esc back</Text>
         </Box>
       ) : null}
+    </Box>
+  );
+}
+
+function HelpOverlay({ ides, toolName }: { ides: Array<{ key: string; label: string }>; toolName: string }) {
+  const Row = ({ k, v }: { k: string; v: string }) => (
+    <Box>
+      <Box width={14}><Text color="cyan">{k}</Text></Box>
+      <Text dimColor>{v}</Text>
+    </Box>
+  );
+  return (
+    <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
+      <Text bold color="cyan">keys — New</Text>
+      <Row k="↑ / ↓" v="move selection" />
+      <Row k="type" v="fuzzy-filter the dirs" />
+      <Row k="enter" v={`launch ${toolName} in the selected dir`} />
+      <Row k="⇥ tab" v="switch to Resume" />
+      <Row k="⇧⇥" v="cycle tool" />
+      <Row k="^n" v="new directory" />
+      <Row k="^t" v="open in tmux" />
+      <Row k="^p" v="git pull first" />
+      <Row k="^f" v="reveal in Finder" />
+      {ides.map((i) => <Row key={i.key} k={`^${i.key.replace('ctrl-', '')}`} v={`open in ${i.label}`} />)}
+      <Row k="esc" v="clear filter / quit" />
+      <Box marginTop={1}><Text dimColor>press any key to close</Text></Box>
     </Box>
   );
 }
