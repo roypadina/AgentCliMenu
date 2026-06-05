@@ -24,7 +24,7 @@ npm run build       # tsup → dist/
 # run from source without building:
 npx tsx src/cli/index.ts        # agent-cli-menu (New; -r for Resume)
 # build the Mac GUI:
-bash gui/build-app.sh && open gui/AgentCliMenu.app
+bash gui/build-app.sh && open "gui/Agent CLI Menu.app"
 ```
 
 Requirements: Node 18+, macOS 12+ (Swift 5.9 / Xcode 15+ for the GUI).

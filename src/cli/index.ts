@@ -29,7 +29,7 @@ export function buildProgram(): Command {
   program
     .name('agent-cli-menu')
     .description('Agent CLI Menu — start a new Claude/Codex session in a project, or search + resume an existing one')
-    .version('0.2.0')
+    .version('0.2.1')
     .option('-r, --resume', 'open the Resume menu (default opens New)')
     .action(async (opts: { resume?: boolean }) => {
       const { runApp } = await import('./router.js');

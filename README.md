@@ -121,12 +121,12 @@ The terminal menu mirrors the same model — start in **New**, `⇥` to **Resume
 brew install --cask roypadina/tap/agentclimenu
 ```
 
-This installs **AgentCliMenu.app** (the menu-bar GUI) and puts **`agent-cli-menu`** (plus the short alias **`acm`**) on your `PATH`.
+This installs **Agent CLI Menu.app** (the menu-bar GUI) and puts **`agent-cli-menu`** (plus the short alias **`acm`**) on your `PATH`.
 
 > Agent CLI Menu is ad-hoc signed (not notarized). On first launch, **right-click Agent CLI Menu in
 > `/Applications` → Open** (then Open again), or run once:
 > ```bash
-> xattr -dr com.apple.quarantine "/Applications/AgentCliMenu.app"
+> xattr -dr com.apple.quarantine "/Applications/Agent CLI Menu.app"
 > ```
 > See [Is it safe?](#is-it-safe).
 
@@ -141,7 +141,7 @@ npm link            # puts agent-cli-menu + acm on your PATH
 
 # optional: build the Mac GUI
 bash gui/build-app.sh
-open gui/AgentCliMenu.app
+open "gui/Agent CLI Menu.app"
 ```
 
 First run sets up a starter config: `agent-cli-menu config --setup`.

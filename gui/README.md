@@ -8,8 +8,8 @@ reads `~/.claude` itself. The GUI and the terminal TUI share one config (`~/.con
 ## Build / run
 
 ```sh
-./build-app.sh                 # → gui/AgentCliMenu.app (release, ad-hoc signed)
-open ./AgentCliMenu.app          # ✦ appears in the menu bar
+./build-app.sh                 # → gui/Agent CLI Menu.app (release, ad-hoc signed)
+open "./Agent CLI Menu.app"          # ✦ appears in the menu bar
 ```
 
 `agent-cli-menu` must be on `PATH` (or at `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`). Until brew

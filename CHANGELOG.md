@@ -3,6 +3,15 @@
 All notable changes to Agent CLI Menu are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.2.1] — 2026-06-05
+
+### Changed
+
+- **App bundle renamed to `Agent CLI Menu.app`** (+ `CFBundleName` = "Agent CLI Menu") so Spotlight,
+  Raycast, and Finder show the spaced display name instead of "AgentCliMenu". `brew upgrade --cask
+  agentclimenu` swaps the bundle. Identifiers (`agentclimenu` token, repo, `com.agentclimenu.menubar`,
+  `agent-cli-menu`/`acm` binaries) are unchanged.
+
 ## [0.2.0] — 2026-06-05
 
 ### Changed (breaking)
@@ -43,6 +52,7 @@ First public release. Agent CLI Menu merges two tools — the `cld` project laun
 - **Shared TOML config** at `~/.config/agentclimenu/config.toml`, edited by hand or in the GUI.
 - Homebrew cask (`roypadina/tap/agentclimenu`) bundling the GUI app and the `cm`/`cld`/`ccsm` CLI.
 
+[0.2.1]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.2.1
 [0.2.0]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.2.0
 [0.1.1]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.1.1
 [0.1.0]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.1.0

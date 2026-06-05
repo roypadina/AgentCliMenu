@@ -7,6 +7,6 @@ coverage/
 
 # GUI build artifacts
 gui/AgentCliMenuBar/.build/
-gui/AgentCliMenu.app/
+gui/*.app/
 gui/*.zip
 docs/LAUNCH.md

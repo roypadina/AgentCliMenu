@@ -13,7 +13,7 @@ echo "› swift build -c release"
 ( cd gui/AgentCliMenuBar && swift build -c release >/dev/null )
 BIN="gui/AgentCliMenuBar/.build/release/AgentCliMenuBar"
 
-APP="gui/AgentCliMenu.app"
+APP="gui/Agent CLI Menu.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/AgentCliMenuBar"
@@ -40,7 +40,7 @@ codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
 # ── zip ──
 ZIP="gui/AgentCliMenu.zip"
 rm -f "$ZIP"
-( cd gui && ditto -c -k --sequesterRsrc --keepParent "AgentCliMenu.app" "AgentCliMenu.zip" )
+( cd gui && ditto -c -k --sequesterRsrc --keepParent "Agent CLI Menu.app" "AgentCliMenu.zip" )
 
 SHA=$(shasum -a 256 "$ZIP" | cut -d' ' -f1)
 SIZE=$(du -h "$ZIP" | cut -f1)
