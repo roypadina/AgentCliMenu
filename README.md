@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/screenshots/gui-resume.png" alt="Agent CLI Menu — start a new Claude or Codex session in any project, or search and resume an existing one. A terminal menu plus a native macOS menu-bar GUI." width="720">
+<img src="docs/demo.gif" alt="Agent CLI Menu demo — fuzzy-filter your projects, switch to Resume, search a past Claude Code session, and peek its transcript before resuming." width="760">
 
 # Agent CLI Menu
 
