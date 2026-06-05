@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
@@ -34,9 +35,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func refreshHotkey() {
+        // AppDelegate is @MainActor, so this Task inherits main-actor isolation:
+        // the await suspends (Cm.configGet shells out off-main internally) and register runs on main.
         Task { [weak self] in
             let spec = (try? await Cm.configGet())?.hotkey
-            await MainActor.run { self?.hotKey.register(spec) }
+            self?.hotKey.register(spec)
         }
     }
 
