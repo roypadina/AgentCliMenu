@@ -3,6 +3,14 @@
 All notable changes to AgentCliMenu are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.1.1] — 2026-06-05
+
+### Fixed
+
+- **GUI launch shortcut is now a recorder.** The Settings field used to require typing the spec
+  by hand (`cmd+shift+m`); you can now click it and press the combo. Only shortcuts the app can
+  actually register are accepted, and Esc clears it.
+
 ## [0.1.0] — 2026-06-05
 
 First public release. AgentCliMenu merges two tools — the `cld` project launcher and the
@@ -24,4 +32,5 @@ First public release. AgentCliMenu merges two tools — the `cld` project launch
 - **Shared TOML config** at `~/.config/agentclimenu/config.toml`, edited by hand or in the GUI.
 - Homebrew cask (`roypadina/tap/agentclimenu`) bundling the GUI app and the `cm`/`cld`/`ccsm` CLI.
 
+[0.1.1]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.1.1
 [0.1.0]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.1.0

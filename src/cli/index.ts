@@ -30,7 +30,7 @@ export function buildProgram(): Command {
   program
     .name('cm')
     .description('AgentCliMenu — new sessions in a project, or search + resume existing ones')
-    .version('0.1.0');
+    .version('0.1.1');
 
   program
     .command('ls')

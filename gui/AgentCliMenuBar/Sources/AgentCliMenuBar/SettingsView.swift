@@ -71,8 +71,9 @@ struct SettingsView: View {
             Divider().padding(.vertical, 2)
             sectionTitle("Launch shortcut (open the window)")
             HStack {
-                TextField("e.g. cmd+shift+m  (empty = off)", text: $hotkey).frame(width: 260)
-                Text("⌘ shift ⌃ ⌥ + a key").font(.caption).foregroundColor(.secondary)
+                HotkeyRecorder(spec: $hotkey).frame(width: 200, height: 24)
+                Button("Clear") { hotkey = "" }.disabled(hotkey.isEmpty)
+                Text("click, then press the combo").font(.caption).foregroundColor(.secondary)
             }
         }
     }
