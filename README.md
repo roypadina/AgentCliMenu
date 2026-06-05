@@ -237,7 +237,7 @@ title → the first user prompt. Status (`busy`/`idle`/`inactive`) is derived fr
 `kill -0` / `ps` check. Working directories are decoded from Claude Code's ambiguous `-`-encoded folder
 names by walking the filesystem — and flagged when the result isn't certain.
 
-See [`CLAUDE.md`](CLAUDE.md) for the full module map.
+📖 Full docs are in the **[Wiki](https://github.com/roypadina/AgentCliMenu/wiki)** (Installation · Commands · Configuration · GUI · Architecture · FAQ). See [`CLAUDE.md`](CLAUDE.md) for the contributor module map.
 
 ## Is it safe?
 
