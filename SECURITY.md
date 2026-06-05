@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-AgentCliMenu launches shell commands and reads your Claude Code session files, so security
+Agent CLI Menu launches shell commands and reads your Claude Code session files, so security
 reports are taken seriously. Please **do not** open a public issue for security problems.
 
 Instead, use GitHub's private vulnerability reporting
@@ -13,7 +13,7 @@ and the report disclosed, with credit unless you prefer otherwise.
 
 ## Scope
 
-AgentCliMenu runs entirely on-device and makes no network calls of its own. Relevant areas:
+Agent CLI Menu runs entirely on-device and makes no network calls of its own. Relevant areas:
 
 - **Command launching** — tool/IDE commands from your config are executed in a shell; session
   ids are interpolated into the resume command (validated against a strict charset first).

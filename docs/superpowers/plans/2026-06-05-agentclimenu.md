@@ -1,5 +1,10 @@
 # AgentCliMenu — implementation plan
 
+> **Historical (dated 2026-06-05).** This captures the original plan. Since then the product
+> shipped as **Agent CLI Menu**, and the three commands `cm`/`cld`/`ccsm` (with `CM_ENTRY`) were
+> replaced by a single **`agent-cli-menu`** (alias **`acm`**): default opens New, `-r`/`--resume`
+> opens Resume. See [`CHANGELOG.md`](../../../CHANGELOG.md) for current behavior.
+
 Merge the **cld** zsh project-launcher and **ccsm** session-manager into one publishable Node/TS + ink tool. Built by extending this repo (cloned from ccsm, history preserved). ESM-only, `moduleResolution:Bundler` (`.js` import extensions), hard `src/core/` (no ink) ↔ `src/cli/` split.
 
 Top-level UX: a root chooser **New session** vs **Resume session** (equal footing), each its own screen. Commands: `cm` → root, `cld` → New, `ccsm` → Resume (+ existing `ls`/`peek`/`resume`/`path`). Config in `~/.config/agentclimenu/config.toml`. Mac menu-bar GUI opens a configurable terminal running `cm`.

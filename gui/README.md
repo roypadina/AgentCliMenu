@@ -1,4 +1,4 @@
-# AgentCliMenu — Mac GUI
+# Agent CLI Menu — Mac GUI
 
 A native menu-bar + window app (SwiftUI, `LSUIElement`) that **is** the menu — it shows your
 projects and sessions in a real UI and opens the chosen one in your configured terminal. It is a

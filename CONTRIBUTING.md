@@ -1,6 +1,6 @@
-# Contributing to AgentCliMenu
+# Contributing to Agent CLI Menu
 
-Thanks for your interest in improving AgentCliMenu! Contributions of all kinds are welcome —
+Thanks for your interest in improving Agent CLI Menu! Contributions of all kinds are welcome —
 bug reports, feature ideas, docs, and code.
 
 ## Ground rules

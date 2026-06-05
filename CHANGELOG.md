@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to AgentCliMenu are documented here. Format loosely follows
+All notable changes to Agent CLI Menu are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
 ## [0.2.0] — 2026-06-05
@@ -24,7 +24,7 @@ All notable changes to AgentCliMenu are documented here. Format loosely follows
 
 ## [0.1.0] — 2026-06-05
 
-First public release. AgentCliMenu merges two tools — the `cld` project launcher and the
+First public release. Agent CLI Menu merges two tools — the `cld` project launcher and the
 `ccsm` session manager — into one, with a native macOS GUI.
 
 ### Added
