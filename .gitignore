@@ -9,4 +9,4 @@ coverage/
 gui/AgentCliMenuBar/.build/
 gui/*.app/
 gui/*.zip
-docs/LAUNCH.md
+docs/DISTRIBUTION.md
