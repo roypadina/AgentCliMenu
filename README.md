@@ -71,6 +71,10 @@ It's **local-only** — it reads `~/.claude/` and your project folders, and runs
 
 ## Screenshots
 
+> **The Mac menu-bar app** — start a new session, fuzzy-resume a past one with a transcript peek, then edit the shared config, all from the menu bar:
+>
+> <img src="docs/gui-demo.gif" alt="Agent CLI Menu menu-bar app cycling through the New project launcher, the Resume tab with a live transcript preview, and the Settings config editor." width="430">
+
 > **The Mac GUI — Resume**, with the transcript preview pane open:
 >
 > <img src="docs/screenshots/gui-resume.png" alt="Resume tab: a fuzzy-searchable session list on the left with status dots and git branches, and a live transcript preview on the right." width="620">

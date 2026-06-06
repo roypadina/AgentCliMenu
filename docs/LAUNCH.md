@@ -11,7 +11,7 @@ A **10–20s demo GIF** at the top of the README: New picker (fuzzy filter) → 
 
 ## Pre-launch checklist
 - [ ] **Demo GIF** (`docs/demo.gif`, VHS `demo.tape`, fake data) — autoplays on GitHub/awesome-lists. (asciinema `<script>` embeds render as nothing on GitHub — must be a GIF.)
-- [ ] **Menu-bar GUI clip** (second GIF) — "polished, not just a script."
+- [x] **Menu-bar GUI clip** → `docs/gui-demo.gif` (New launcher → Resume + transcript peek → Settings; built from the same fake `/private/tmp/acmdemo` dataset, not real `~/.claude`). Now the lead image in the README Screenshots section.
 - [ ] **README** stays landing-page shaped (H1 → GIF → badges → 1-line install → pain bullets). ✅ mostly done.
 - [x] **Social-preview/OG image** built → `docs/social-preview.png` (1280×640). ⚠️ Still **upload via repo Settings → General → Social preview (web UI only, no API)** before sharing (X/Slack cache unfurls). Verify with X Card Validator.
 - [x] **Topics** (claude-code, codex, coding-agent, ai-agent, session-manager, cli, tui, terminal, macos, menu-bar, swiftui, homebrew, developer-tools) + keyword About line.
