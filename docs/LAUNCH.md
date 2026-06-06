@@ -1,7 +1,8 @@
-# Agent CLI Menu — Launch Plan (internal, not published)
+# Agent CLI Menu — Launch & Promotion Notes
 
-> Local reference (gitignored). From the distribution-research workflow, adapted to the v0.2.0
-> command scheme (`agent-cli-menu` / `acm`). The *actual* posting is done by you, in your voice.
+> Launch playbook from the distribution-research workflow, on the v0.2.x command scheme
+> (`agent-cli-menu` / `acm`). The *actual* posting is done by the author, in their own voice.
+> A deeper channel-by-channel breakdown lives in `docs/DISTRIBUTION.md` (kept local).
 
 **Positioning — lead with this everywhere:** *"Never lose a Claude Code / Codex session again — fuzzy-search and resume any past session with transcript preview, plus a frecency-sorted launcher for new ones."* The **resume-with-transcript-preview** hook is the novel part. Do **not** lead with "menu/launcher" (HN will say "just use tmux").
 
@@ -12,7 +13,7 @@ A **10–20s demo GIF** at the top of the README: New picker (fuzzy filter) → 
 - [ ] **Demo GIF** (`docs/demo.gif`, VHS `demo.tape`, fake data) — autoplays on GitHub/awesome-lists. (asciinema `<script>` embeds render as nothing on GitHub — must be a GIF.)
 - [ ] **Menu-bar GUI clip** (second GIF) — "polished, not just a script."
 - [ ] **README** stays landing-page shaped (H1 → GIF → badges → 1-line install → pain bullets). ✅ mostly done.
-- [ ] **Social-preview/OG image** (1280×640, <1MB) — **must be set via repo Settings → Social preview (web UI only, no API)** before sharing (X/Slack cache unfurls). Verify with X Card Validator.
+- [x] **Social-preview/OG image** built → `docs/social-preview.png` (1280×640). ⚠️ Still **upload via repo Settings → General → Social preview (web UI only, no API)** before sharing (X/Slack cache unfurls). Verify with X Card Validator.
 - [x] **Topics** (claude-code, codex, coding-agent, ai-agent, session-manager, cli, tui, terminal, macos, menu-bar, swiftui, homebrew, developer-tools) + keyword About line.
 - [x] **FUNDING.yml** (ko_fi: roypadina).
 - [ ] Pinned **"good first issue"**.
@@ -20,7 +21,7 @@ A **10–20s demo GIF** at the top of the README: New picker (fuzzy filter) → 
 - [ ] **Pre-written objection answers** (tmux / `claude --resume`; "phones home?" → local-only MIT; macOS-only).
 
 **Eligibility timers (repo created 2026-06-05, 0 stars):**
-- **awesome-claude-code**: repo ≥7d old + ≥5 stars + account ≥14d → submit ~**2026-06-12** (web issue form only; NEVER a PR/`gh` — auto-ban).
+- **awesome-claude-code**: the issue-form's only hard gate is **repo ≥1 week old** (first commit 2026-06-05 → eligible **2026-06-12**) + no other open issue from you in that repo. No star minimum in the form itself (stars only help the maintainer's discretionary review). Web issue form ONLY; NEVER a PR/`gh` — auto-ban. Pre-filled answers ready in `docs/awesome-claude-code-submission.md`.
 - **AlternativeTo**: create an account **now** (blocks new accounts from creating pages ~1 week).
 - **awesome-cli-apps**: blocked until 90 days + >20 stars — later.
 
@@ -61,8 +62,7 @@ MIT, runs fully local — reads your local session files, nothing leaves your ma
 
   brew install --cask roypadina/tap/agentclimenu
 
-Repo + demo: https://github.com/roypadina/AgentCliMenu
-Terminal demo: <asciinema link>
+Repo + demo (GIF in the README): https://github.com/roypadina/AgentCliMenu
 
 Most want feedback on: (1) is the transcript-preview-on-resume enough to identify a session?
 (2) Linux/Windows interest — the TUI is Node/ink so it's portable in principle. Happy to answer anything.

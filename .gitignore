@@ -10,3 +10,4 @@ gui/AgentCliMenuBar/.build/
 gui/*.app/
 gui/*.zip
 docs/DISTRIBUTION.md
+docs/awesome-claude-code-submission.md
