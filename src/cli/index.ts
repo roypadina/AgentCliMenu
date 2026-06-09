@@ -3,6 +3,7 @@ import { listSessions, getSession } from '../core/sessionRepo.js';
 import { renderTable } from './render.js';
 import { renderPeek } from './peek.js';
 import { resume, ResumeError } from './resume.js';
+import { getRecap, RecapError } from '../core/recap.js';
 import { registerConfigCommands } from './config.js';
 import { registerGuiCommands } from './guiCmd.js';
 
@@ -92,6 +93,21 @@ export function buildProgram(): Command {
   program
     .command('path <id>')
     .action(async (id: string) => { const s = await resolveId(id); console.log(s.jsonlPath); });
+
+  program
+    .command('recap <id>')
+    .description('summarize a session via claude -p (cached; --refresh to regenerate)')
+    .option('--refresh', 'ignore the cache and regenerate')
+    .action(async (id: string, opts: { refresh?: boolean }) => {
+      const s = await resolveId(id);
+      try {
+        const r = await getRecap({ id: s.id, jsonlPath: s.jsonlPath }, { refresh: opts.refresh });
+        console.log(r.text);
+      } catch (e) {
+        if (e instanceof RecapError) { console.error(e.message); process.exit(e.code); }
+        throw e;
+      }
+    });
 
   registerConfigCommands(program);
   registerGuiCommands(program);

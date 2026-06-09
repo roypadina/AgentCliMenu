@@ -1,0 +1,3 @@
+{"type":"mode","mode":"default"}
+{"type":"user","timestamp":"2026-06-04T12:12:49.361Z","message":{"role":"user","content":"iso hello"}}
+{"type":"assistant","timestamp":"2026-06-04T12:13:00.000Z","message":{"role":"assistant","content":[{"type":"text","text":"hi there"}]}}

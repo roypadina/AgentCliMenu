@@ -30,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshHotkey()
         NotificationCenter.default.addObserver(self, selector: #selector(refreshHotkey), name: .cmHotkeyChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(actionFailed(_:)), name: .cmActionFailed, object: nil)
+        // Click outside the app (another window / the desktop) closes the floating window — a
+        // menu-bar-panel feel. Sheets/alerts keep the app active, so they don't trip this.
+        NotificationCenter.default.addObserver(self, selector: #selector(appResignedActive), name: NSApplication.didResignActiveNotification, object: nil)
 
         if ProcessInfo.processInfo.environment["CM_GUI_SHOW_WINDOW"] == "1" { openWindow() }
     }
@@ -84,7 +87,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if ProcessInfo.processInfo.environment["CM_GUI_SHOW_SETTINGS"] == "1" {
                 w.contentViewController = NSHostingController(rootView: SettingsView())
             } else {
-                w.contentViewController = NSHostingController(rootView: ContentView())
+                w.contentViewController = NSHostingController(rootView: ContentView(
+                    onAction: { [weak self] in self?.window?.close() } // Esc / resume / launch closes the window
+                ))
             }
             w.center()
             // Remember the user's size/position across launches.
@@ -110,6 +115,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "OK")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
+    }
+
+    /// Click outside the app (another window / the desktop) closes the floating window.
+    @objc private func appResignedActive() {
+        if ProcessInfo.processInfo.environment["CM_GUI_SHOW_WINDOW"] == "1" { return } // keep open for headless screenshots
+        if let w = window, w.isVisible { w.close() }
     }
 
     @objc private func quit() { NSApplication.shared.terminate(nil) }

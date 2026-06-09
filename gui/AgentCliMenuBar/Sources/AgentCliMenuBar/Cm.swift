@@ -21,6 +21,10 @@ struct Tool: Codable, Identifiable {
 struct Session: Codable, Identifiable {
     let id: String; let name: String; let cwd: String; let status: String
     let active: Bool; let gitBranch: String?; let cwdConfident: Bool; let lastUpdatedAt: String
+    let startedAt: String?
+}
+struct RecapResponse: Codable {
+    let ok: Bool; let text: String?; let generatedAt: String?; let fromCache: Bool?; let error: String?
 }
 struct TerminalOpt: Codable, Identifiable {
     let id: String; let label: String; let installed: Bool; let selected: Bool
@@ -119,6 +123,13 @@ enum Cm {
     static func sessions() async throws -> [Session] { try await runAsync("sessions", [Session].self) }
     static func terminals() async throws -> TerminalsResponse { try await runAsync("terminals", TerminalsResponse.self) }
     static func peek(id: String) async throws -> [PeekTurn] { try await runAsync("peek --id '\(esc(id))'", [PeekTurn].self) }
+    /// Summarize a session via `claude -p` (haiku, cached). Slow on a cache miss — call off the main actor.
+    /// `cachedOnly` returns an existing recap instantly (or ok=false) without generating.
+    static func recap(id: String, refresh: Bool = false, cachedOnly: Bool = false) async throws -> RecapResponse {
+        var flags = ""
+        if cachedOnly { flags = " --cached-only" } else if refresh { flags = " --refresh" }
+        return try await runAsync("recap --id '\(esc(id))'\(flags)", RecapResponse.self)
+    }
 
     static func launch(dir: String, tool: String) { runVoid("launch --dir '\(esc(dir))' --tool '\(esc(tool))'") }
     static func resume(id: String) { runVoid("resume --id '\(esc(id))'") }

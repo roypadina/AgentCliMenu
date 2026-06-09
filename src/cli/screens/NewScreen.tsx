@@ -73,6 +73,9 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
   // Viewport: window the header+dir rows around the selection so long lists don't overflow.
   const termRows = process.stdout.rows ?? 30;
   const maxVisible = Math.max(4, termRows - 9); // header + warnings + nd/footer + affordances
+  const colsNew = process.stdout.columns ?? 100;
+  const wBranchNew = 16;
+  const wNameNew = Math.max(18, Math.min(48, colsNew - 4 - 2 - wBranchNew - 8));
   const selRowIdx = selected ? rows.findIndex((r) => r.kind === 'dir' && r.dir === selected) : 0;
   const winStart = rows.length <= maxVisible
     ? 0
@@ -193,7 +196,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
       ) : null}
 
       {mode === 'help' ? <HelpOverlay ides={config?.ides ?? []} toolName={tool.name} /> : (
-        <Box flexDirection="column" marginTop={1}>
+        <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
           {rows.length === 0 ? (
             <Text dimColor>
               {groups.length === 0
@@ -202,20 +205,26 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
             </Text>
           ) : (
             <>
-              {ctxHeader ? <Text bold color={hexColor(ctxHeader.color)}>── {ctxHeader.name} ──────────────────</Text> : null}
+              <Box>
+                <Box width={2}><Text> </Text></Box>
+                <Box width={wNameNew} marginRight={1}><Text dimColor bold>NAME</Text></Box>
+                <Box width={wBranchNew} marginRight={1}><Text dimColor bold>BRANCH</Text></Box>
+                <Box flexGrow={1}><Text dimColor bold>AGE</Text></Box>
+              </Box>
+              {ctxHeader ? <Text bold color={hexColor(ctxHeader.color)}>── {ctxHeader.name} ──</Text> : null}
               {hiddenAbove > 0 ? <Text dimColor>  ▲ {hiddenAbove} more above</Text> : null}
               {view.map((row, i) => {
                 if (row.kind === 'header') {
-                  return <Text key={'h' + (winStart + i)} bold color={hexColor(row.color)}>── {row.name} ──────────────────</Text>;
+                  return <Text key={'h' + (winStart + i)} bold color={hexColor(row.color)}>── {row.name} ──</Text>;
                 }
                 const d = row.dir;
                 const sel = d === selected;
                 return (
                   <Box key={d.path}>
-                    <Text bold color={sel ? 'yellow' : 'gray'}>{sel ? '▸ ' : '  '}</Text>
-                    <Text bold color={sel ? 'cyan' : 'white'}>{d.name}</Text>
-                    <Text dimColor>   {timeAgo(new Date(d.timeMs))}</Text>
-                    {d.gitBranch ? (<><Text dimColor>   ⎇ </Text><Text color="magenta">{d.gitBranch}</Text></>) : null}
+                    <Box width={2}><Text bold color={sel ? 'yellow' : 'gray'}>{sel ? '▸' : ' '}</Text></Box>
+                    <Box width={wNameNew} marginRight={1}><Text bold={sel} color={sel ? 'cyan' : 'white'} wrap="truncate-end">{d.name}</Text></Box>
+                    <Box width={wBranchNew} marginRight={1}><Text color="magenta" wrap="truncate-end">{d.gitBranch ?? '–'}</Text></Box>
+                    <Box flexGrow={1}><Text dimColor>{timeAgo(new Date(d.timeMs))}</Text></Box>
                   </Box>
                 );
               })}

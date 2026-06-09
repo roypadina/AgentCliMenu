@@ -48,3 +48,49 @@ describe('fuzzyRank', () => {
     expect(fuzzyRank('', items, (s) => s).map((r) => r.item)).toEqual(['b', 'a', 'c']);
   });
 });
+
+// Regression: the Resume picker resumed the WRONG session. Searching "LanGuard" surfaced an
+// unrelated session as a scattered gapped subsequence (negative score) — so the only result on
+// screen was the wrong one, while the intended session (named "LanGurd") didn't match at all.
+// A subsequence whose spread penalty exceeds its bonuses is noise, not a match.
+describe('fuzzyMatch — relevance floor', () => {
+  const unrelated =
+    'Create reeco-create-plugin wrapper with naming and deduplication  ~/Code/Reeco/Claude-Code-Plugins';
+
+  it('rejects a scattered subsequence that scores below neutral', () => {
+    // "LanGuard" letters appear scattered across `unrelated` (pre-fix score ≈ -2.9).
+    expect(fuzzyMatch('LanGuard', unrelated)).toBeNull();
+  });
+
+  it('keeps legitimate gapped / acronym matches (positive score)', () => {
+    expect(fuzzyMatch('acm', 'AgentCliMenu')).not.toBeNull(); // acronym ≈ 15.4
+    expect(fuzzyMatch('wap', 'web-app')).not.toBeNull(); // ≈ 22
+    expect(fuzzyMatch('api', 'aaa-p-iii')).not.toBeNull(); // scattered but positive ≈ 19.8
+  });
+
+  it('never returns a negative score', () => {
+    const m = fuzzyMatch('api', 'aaa-p-iii');
+    expect(m).not.toBeNull();
+    expect(m!.score).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('fuzzyRank — never surfaces an unrelated session as the only match', () => {
+  const sessions = [
+    { name: 'LanGurd', text: 'LanGurd  ~/Code  2cb6745a-6bda-4e44-9d98-9b3da5fb1f30' },
+    {
+      name: 'reeco',
+      text: 'Create reeco-create-plugin wrapper with naming and deduplication  ~/Code/Reeco/Claude-Code-Plugins',
+    },
+  ];
+
+  it('returns no matches when only a garbage scattered subsequence exists', () => {
+    // "LanGuard" (with the 2nd "a") matches neither session meaningfully → empty list,
+    // NOT the unrelated reeco session (which clicking would have resumed).
+    expect(fuzzyRank('LanGuard', sessions, (s) => s.text).map((r) => r.item.name)).toEqual([]);
+  });
+
+  it('still finds the intended session for the correctly-spelled query', () => {
+    expect(fuzzyRank('LanGurd', sessions, (s) => s.text).map((r) => r.item.name)[0]).toBe('LanGurd');
+  });
+});

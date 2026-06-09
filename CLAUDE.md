@@ -30,6 +30,7 @@ src/core/                 zero ink/react imports — pure data
   search.ts               async generator full-text search across all sessions
   sessionRepo.ts          orchestrator: listSessions / getSession
   transcript.ts           JSONL → TranscriptTurn[] (default/full/head+tail modes)
+  recap.ts                on-demand AI recap: claude -p --model haiku on head+tail excerpt, cached to ~/.config/agentclimenu/recaps/<id>.md (DI'd I/O + spawn)
   config/                 AgentCliMenu launcher config (TOML, smol-toml)
     types.ts              GroupConfig/ToolConfig/IdeConfig/ThemeConfig, ConfigError
     paths.ts              configPath chain + expandPath (~ / allowlisted $VAR)

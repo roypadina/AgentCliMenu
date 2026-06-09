@@ -23,7 +23,7 @@ struct ContentView: View {
     @State private var tab: Tab = ProcessInfo.processInfo.environment["CM_GUI_START_TAB"] == "resume" ? .resume : .new
     @State private var projects: ProjectsResponse?
     @State private var sessions: [Session] = []
-    @State private var search = ""
+    @State private var search = ProcessInfo.processInfo.environment["CM_GUI_SEARCH"] ?? ""
     @State private var selectedTool = ""
     @State private var loading = false
     @State private var sessionsLoaded = false
@@ -41,7 +41,19 @@ struct ContentView: View {
     @State private var peekLoadingId: String?
     @State private var peekFailed: Set<String> = []   // ids whose transcript read failed (don't auto-retry)
 
+    // recap (claude -p · haiku, cached). Cached recaps auto-load on highlight; generation is on-demand.
+    @State private var recapCache: [String: String] = [:]
+    @State private var recapLoadingId: String?
+    @State private var recapError: [String: String] = [:]
+
     private var query: String { search.trimmingCharacters(in: .whitespaces) }
+
+    private static let isoFrac: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f
+    }()
+    private static let isoPlain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime]; return f
+    }()
 
     // ── derived lists ──
     private var newSections: [(group: Group, dirs: [Dir], start: Int)] {
@@ -76,7 +88,11 @@ struct ContentView: View {
             if tab == .new {
                 newList
             } else if showPeek {
-                HStack(alignment: .top, spacing: 8) { resumeList; Divider(); peekPane }
+                // Draggable divider — drag left/right to resize the list vs the preview.
+                HSplitView {
+                    resumeList.frame(minWidth: 240)
+                    peekPane
+                }
             } else {
                 resumeList
             }
@@ -207,7 +223,7 @@ struct ContentView: View {
     private func sessionRow(_ s: Session, index: Int) -> some View {
         let sel = index == selIndex
         let confirming = confirmResumeId == s.id && sel
-        return Button { selection = index; activate() } label: {
+        return Button { selection = index; resumeSession(s) } label: {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Image(systemName: "circle.fill").font(.system(size: 9)).foregroundColor(statusColor(s.status))
@@ -236,10 +252,44 @@ struct ContentView: View {
 
     // ── peek pane (Resume split) ──
     private var peekPane: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             if let s = selectedSession {
-                Text(s.name).font(.caption).bold().lineLimit(1)
+                // ── more info (shown on highlight, before opening) ──
+                Text(s.name).font(.callout).bold().lineLimit(2)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "circle.fill").font(.system(size: 8)).foregroundColor(statusColor(s.status))
+                        Text(statusText(s.status)).font(.caption2).foregroundColor(.secondary)
+                        if let b = s.gitBranch { Text("⎇ \(b)").font(.caption2).foregroundColor(.purple) }
+                        if !s.cwdConfident { Text("⚠ cwd").font(.caption2).foregroundColor(.orange) }
+                    }
+                    Text(s.id).font(.system(size: 10, design: .monospaced)).foregroundColor(.secondary).textSelection(.enabled)
+                    Text("started    \(fmtIso(s.startedAt))").font(.caption2).foregroundColor(.secondary)
+                    Text("last used  \(fmtIso(s.lastUpdatedAt))").font(.caption2).foregroundColor(.secondary)
+                    Text(tilde(s.cwd)).font(.caption2).foregroundColor(.secondary).lineLimit(2).textSelection(.enabled)
+                }
+                // ── recap ──
+                HStack(spacing: 6) {
+                    Text("Recap").font(.caption).bold()
+                    if recapLoadingId == s.id { ProgressView().controlSize(.small) }
+                    Spacer()
+                    Button(recapCache[s.id] == nil ? "Generate" : "Refresh") {
+                        generateRecap(s.id, refresh: recapCache[s.id] != nil)
+                    }
+                    .font(.caption2).buttonStyle(.borderless).disabled(recapLoadingId == s.id)
+                    .help("Summarize this session with claude -p (haiku), cached")
+                }
+                if let err = recapError[s.id] {
+                    Text(err).font(.caption2).foregroundColor(.red).lineLimit(3)
+                } else if let t = recapCache[s.id] {
+                    Text(t).font(.caption2).foregroundColor(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                } else if recapLoadingId == s.id {
+                    Text("generating… (claude · haiku)").font(.caption2).foregroundColor(.secondary)
+                } else {
+                    Text("press Generate for a quick summary").font(.caption2).foregroundColor(.secondary)
+                }
                 Divider()
+                // ── transcript ──
                 if peekLoadingId == s.id {
                     HStack(spacing: 6) { ProgressView().controlSize(.small); Text("loading…").font(.caption2).foregroundColor(.secondary) }
                 } else if peekFailed.contains(s.id) {
@@ -267,9 +317,12 @@ struct ContentView: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(width: 300)
-        // Debounced fetch: only fires 300ms after selection settles; cached per id.
-        .task(id: selectedSession?.id) { await loadPeek() }
+        .frame(minWidth: 260, idealWidth: 340, maxWidth: .infinity)
+        // Debounced transcript fetch + instant cached-recap load when the selection settles.
+        .task(id: selectedSession?.id) {
+            await loadPeek()
+            if let id = selectedSession?.id { loadCachedRecap(id) }
+        }
     }
 
     private func loadPeek() async {
@@ -287,6 +340,37 @@ struct ContentView: View {
         peekLoadingId = nil
     }
 
+    /// Pull an already-cached recap (instant, never generates) when a row is highlighted.
+    private func loadCachedRecap(_ id: String) {
+        if recapCache[id] != nil || recapLoadingId == id { return }
+        Task {
+            if let r = try? await Cm.recap(id: id, cachedOnly: true), r.ok, let t = r.text {
+                await MainActor.run { recapCache[id] = t }
+            }
+        }
+    }
+
+    /// Generate (or refresh) a recap on demand — this spawns `claude -p` so it can take seconds.
+    private func generateRecap(_ id: String, refresh: Bool) {
+        if recapLoadingId == id { return }
+        recapLoadingId = id
+        recapError[id] = nil
+        Task {
+            do {
+                let r = try await Cm.recap(id: id, refresh: refresh)
+                await MainActor.run {
+                    if r.ok, let t = r.text { recapCache[id] = t } else { recapError[id] = r.error ?? "recap failed" }
+                    if recapLoadingId == id { recapLoadingId = nil }
+                }
+            } catch {
+                await MainActor.run {
+                    recapError[id] = describe(error)
+                    if recapLoadingId == id { recapLoadingId = nil }
+                }
+            }
+        }
+    }
+
     // ── keyboard actions ──
     private func move(_ delta: Int) {
         guard count > 0 else { return }
@@ -300,14 +384,20 @@ struct ContentView: View {
             Cm.launch(dir: d.path, tool: selectedTool); onAction()
         } else {
             guard let s = selectedSession else { return }
-            if !s.cwdConfident && confirmResumeId != s.id { confirmResumeId = s.id; return }
-            Cm.resume(id: s.id); onAction()
+            resumeSession(s)
         }
+    }
+
+    /// Resume an explicit session — used by both keyboard activate and row taps. Taps pass the
+    /// row's own session so a not-yet-committed `selection` @State write can't resume a stale row.
+    private func resumeSession(_ s: Session) {
+        if !s.cwdConfident && confirmResumeId != s.id { confirmResumeId = s.id; return }
+        Cm.resume(id: s.id); onAction()
     }
     private func cancel() {
         if confirmResumeId != nil { confirmResumeId = nil; return }
         if !search.isEmpty { search = ""; return }
-        onAction() // closes the popover (no-op in a window)
+        onAction() // Esc with nothing to clear → close the popover or the detached window
     }
     private func cycleTool() {
         guard let tools = projects?.tools, !tools.isEmpty else { return }
@@ -335,6 +425,12 @@ struct ContentView: View {
         if diff < 86400 { return "\(Int(diff/3600))h" }
         if diff < 604800 { return "\(Int(diff/86400))d" }
         return "\(Int(diff/604800))w"
+    }
+    /// ISO timestamp → "Jun 09 11:18  (1m ago)".
+    private func fmtIso(_ iso: String?) -> String {
+        guard let iso, let d = ContentView.isoFrac.date(from: iso) ?? ContentView.isoPlain.date(from: iso) else { return "—" }
+        let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX"); df.dateFormat = "MMM dd HH:mm"
+        return "\(df.string(from: d))  (\(age(d.timeIntervalSince1970 * 1000)) ago)"
     }
 
     // ── data ──

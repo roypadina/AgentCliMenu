@@ -62,6 +62,7 @@ It's **local-only** — it reads `~/.claude/` and your project folders, and runs
 | 🆕 **New-session launcher** | Grouped project dirs, frecency-sorted (`z`, falls back to mtime), fuzzy filter, git branch per row. |
 | 🔁 **Resume anything** | Every Claude Code session, fuzzy-matched on name / path / id — or full-text searched across transcripts. |
 | 👀 **Transcript peek** | Preview a session's conversation before resuming — inline in the terminal, side-pane in the GUI. |
+| 🧠 **AI recap** | `r` summarizes a session (what it was doing, decisions, state, follow-ups) via `claude -p` on haiku, cached. Decide whether to resume without reading the whole transcript. |
 | ⌨️ **Two tabs, one keystroke** | Start in **New**; `⇥` flips to **Resume**; `⇧⇥` cycles the tool. Same model in TUI and GUI. |
 | 🧰 **Your tools & IDEs** | Configure any agent command (`claude`, `codex`, …) and `^`-key IDE binds (VS Code, Rider, …). |
 | 🪄 **tmux / pull / Finder / new-dir** | One-key open-in-tmux, `git pull` first, reveal in Finder, or make a new directory anywhere. |
@@ -101,18 +102,23 @@ It's **local-only** — it reads `~/.claude/` and your project folders, and runs
 The terminal menu mirrors the same model — start in **New**, `⇥` to **Resume**:
 
 ```
- resume   24 sessions  ·  3 active  ·  2/24
- ● busy   ● idle   ○ inactive
+ resume   24 sessions  ·  3 active  ·  2/24      ● busy  ● idle  ○ inactive
+ ╭──────────────────────────────────────────────┬────────────┬──────────────╮
+ │   SESSION                                      │ BRANCH     │ LAST USED    │
+ ├──────────────────────────────────────────────┼────────────┼──────────────┤
+ │ ▶ ● AgentCliMenu — GUI keyboard nav            │ main       │ 2m ago       │
+ │   ○ Recover Edge profiles after crash          │ main       │ 19h ago      │
+ │   ○ reeco-item-classifier POC                  │ poc/bert   │ 2d ago       │
+ ╰──────────────────────────────────────────────┴────────────┴──────────────╯
+ ╭ AgentCliMenu — GUI keyboard nav ─────────────────────────────────────────╮
+ │ a1b2c3d4 · ● busy · ⎇ main                                                │
+ │ started Jun 5 13:06 · last used Jun 9 17:30 (2m ago)                      │
+ │ ~/Code/Padina/AgentCliMenu                                                │
+ │ recap  • Redesigned Resume as a bordered table with a details pane.       │
+ │        • Added an AI recap (claude -p · haiku, cached).                   │
+ ╰───────────────────────────────────────────────────────────────────────────╯
 
- ▶ ● AgentCliMenu — GUI keyboard nav            p peek
-     a1b2c3d4   updated Jun 5 17:30 (2m)   started Jun 5 13:06
-     ~/Code/Padina/AgentCliMenu   ⎇ main
-   ○ Recover Edge profiles after crash
-     9f8e7d6c   updated Jun 4 22:11 (19h)  started Jun 4 21:40
-     ~/Code/Padina/LanGuard-app   ⎇ main
-   ▼ 22 more below
-
- ↑/↓ move  ·  enter resume  ·  p peek  ·  / filter  ·  s search  ·  r refresh  ·  ? help  ·  q quit
+ ↑/↓ move  ·  ⏎ resume  ·  r recap  ·  p peek  ·  / filter  ·  s search  ·  ? help  ·  q quit
 ```
 
 ## Install
@@ -165,6 +171,7 @@ Plus non-interactive subcommands:
 ```bash
 agent-cli-menu ls [--cwd <path>] [--active] [--json] [--sort updated|started|name] [--limit N]
 agent-cli-menu peek <id> [--full] [--head N --tail N]   # print a transcript
+agent-cli-menu recap <id> [--refresh]                   # AI summary of a session (cached)
 agent-cli-menu resume <id> [--yes] [--cwd <override>]   # resume by id (prefix ≥ 4 chars)
 agent-cli-menu path <id>                                # print the .jsonl path
 agent-cli-menu config --setup | --edit | --path         # manage the shared config
@@ -175,9 +182,9 @@ agent-cli-menu config --setup | --edit | --path         # manage the shared conf
 **New** — `↑/↓` move · type to fuzzy-filter · `↵` launch · `⇥` Resume · `⇧⇥` cycle tool · `^n` new dir ·
 `^t` tmux · `^p` pull · `^f` Finder · `^`-key IDEs · `?` full keymap · `esc` back.
 
-**Resume** — `↑/↓` (or `j/k`) move · `↵` resume · `p` peek · `/` fuzzy-filter · `s` full-text search ·
-`r` refresh · `⇥` New · `?` help · `q` quit. A `⚠` marks a session whose working directory couldn't be
-decoded with confidence — `↵` twice to resume anyway.
+**Resume** — `↑/↓` (or `j/k`) move · `↵` resume · `p` peek · `r` recap · `/` fuzzy-filter · `s` full-text search ·
+`^r` refresh · `⇥` New · `?` help · `q` quit. Highlighting a row shows its full details + recap inline.
+A `⚠` marks a session whose working directory couldn't be decoded with confidence — `↵` twice to resume anyway.
 
 ## The Mac GUI
 
@@ -186,8 +193,13 @@ resizable window. It's a thin view over the same `agent-cli-menu` back-end — i
 `~/.claude` itself.
 
 - **Fully keyboard-driven** — type to filter, `↑/↓` to select, `↵` to launch/resume, `⇥` to switch tabs,
-  `esc` to clear or close. The search field keeps focus the whole time.
-- **Transcript preview** — toggle the side pane in Resume to read a session before resuming.
+  `esc` to clear or close. The search field keeps focus the whole time. Clicking outside the window or
+  pressing `esc` dismisses it (menu-bar-panel feel).
+- **Details + recap on select** — highlight a session to see its full metadata (id, status, branch,
+  started, **last used**, cwd) and a **Generate recap** button — an AI summary so you know what it was
+  doing before you resume.
+- **Transcript preview** — read a session's recent transcript on the right before resuming. Drag the
+  divider to **resize** the list / preview split.
 - **In-app Settings** — edit groups (with color pickers), tools, IDE binds, the terminal to open
   sessions in, and a **global hotkey** to summon the window. Saves to the same TOML the terminal reads.
 - **Configurable terminal** — open sessions in the system default, or in Terminal / iTerm / Ghostty /

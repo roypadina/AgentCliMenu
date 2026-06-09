@@ -60,6 +60,16 @@ function extractUserText(obj: unknown): string | null {
   return null;
 }
 
+/** Claude Code writes ISO-string timestamps; older/fixture data uses epoch ms. Accept both. */
+function parseTimestamp(ts: unknown): Date | null {
+  if (typeof ts === 'number' && Number.isFinite(ts)) return new Date(ts);
+  if (typeof ts === 'string') {
+    const d = new Date(ts);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
 function trimTitle(s: unknown): string | null {
   if (typeof s !== 'string') return null;
   const t = s.replace(/\s+/g, ' ').trim();
@@ -99,10 +109,7 @@ export async function scanJsonl(path: string): Promise<ScanResult> {
         }
       }
       if (firstTimestamp === null) {
-        const ts = o.timestamp;
-        if (typeof ts === 'number' && Number.isFinite(ts)) {
-          firstTimestamp = new Date(ts);
-        }
+        firstTimestamp = parseTimestamp(o.timestamp);
       }
     }
   } finally {

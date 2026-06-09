@@ -47,6 +47,10 @@ enum Fuzzy {
         if qi < q.count { return nil } // not all query chars consumed
         let span = positions[positions.count - 1] - positions[0]
         score -= Double(positions[0]) * 0.5 + Double(span) * 0.2
+        // Relevance floor (matches src/core/fuzzy.ts): a subsequence whose spread penalty
+        // outweighs its bonuses is noise, not a match — surfacing it makes the picker resume the
+        // wrong session. Contiguous/boundary matches stay comfortably positive.
+        if score < 0 { return nil }
         return FuzzyResult(score: score, positions: positions)
     }
 

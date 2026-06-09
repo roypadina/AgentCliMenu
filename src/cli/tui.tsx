@@ -8,18 +8,16 @@ import { readTranscript } from '../core/transcript.js';
 import { searchSessions, type SearchMatch } from '../core/search.js';
 import { formatDate, timeAgo } from './format.js';
 import { fuzzyRank } from '../core/fuzzy.js';
+import { getRecap, readCachedRecap, spawnRun } from '../core/recap.js';
 import type { SessionRecord, SessionStatus, TranscriptTurn } from '../core/types.js';
+
+interface RecapState { text?: string; loading?: boolean; error?: string }
 
 const STATUS_DOT: Record<SessionStatus, string> = { busy: '●', idle: '●', inactive: '○' };
 const STATUS_COLOR: Record<SessionStatus, 'green' | 'yellow' | 'gray'> = {
   busy: 'green',
   idle: 'yellow',
   inactive: 'gray',
-};
-const STATUS_LABEL: Record<SessionStatus, string> = {
-  busy: 'busy',
-  idle: 'idle',
-  inactive: '',
 };
 
 function tildify(p: string): string {
@@ -72,6 +70,26 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const clamped = Math.min(cursor, Math.max(0, filtered.length - 1));
   const [confirmResumeId, setConfirmResumeId] = useState<string | null>(null);
   const activeCount = records.filter(r => r.active).length;
+
+  // Recap (R): generated lazily via `claude -p` (haiku) and cached. The highlighted row auto-shows
+  // a cached recap if one exists; R generates/refreshes it. State is keyed by session id.
+  const [recaps, setRecaps] = useState<Record<string, RecapState>>({});
+  const selId = filtered[clamped]?.id;
+  useEffect(() => {
+    if (selId && recaps[selId] === undefined) {
+      const cached = readCachedRecap(selId);
+      if (cached) setRecaps(p => ({ ...p, [selId]: { text: cached.text } }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selId]);
+
+  const runRecap = (s: SessionRecord, refresh = false) => {
+    if (recaps[s.id]?.loading) return;
+    setRecaps(p => ({ ...p, [s.id]: { loading: true } }));
+    getRecap({ id: s.id, jsonlPath: s.jsonlPath }, { refresh }, { run: spawnRun() })
+      .then(r => setRecaps(p => ({ ...p, [s.id]: { text: r.text } })))
+      .catch(e => setRecaps(p => ({ ...p, [s.id]: { error: e instanceof Error ? e.message : 'recap failed' } })));
+  };
 
   const cols = process.stdout.columns ?? 120;
   const rows = process.stdout.rows ?? 30;
@@ -201,8 +219,12 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         setMode('peek');
       }
     }
-    if (input === 'r') {
+    if (key.ctrl && input === 'r') {
       listSessions().then(setRecords).catch(() => { /* noop */ });
+    }
+    if ((input === 'r' || input === 'R') && !key.ctrl) {
+      const s = filtered[clamped];
+      if (s) runRecap(s, !!recaps[s.id]?.text); // refresh if one is already shown
     }
     if (key.return) {
       const s = filtered[clamped];
@@ -213,14 +235,18 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     }
   });
 
-  const cardLines = 3;
-  const chromeLines = 8;
-  const visibleCards = Math.max(3, Math.floor((rows - chromeLines) / cardLines));
+  // Table column widths (cwd flex-fills the rest). ink truncates each cell to its Box width.
+  const tableInner = Math.max(48, cols - 4);
+  const wBranch = 12;
+  const wUsed = 14; // "Jun 09 10:43"
+  const wName = Math.max(16, Math.min(44, Math.floor((tableInner - 4 - wBranch - wUsed) * 0.5)));
+  // 1-line rows now; leave room for the table border + the on-highlight details pane + chrome.
+  const rowsPerView = Math.max(3, rows - 18);
   const start = Math.max(
     0,
-    Math.min(Math.max(0, filtered.length - visibleCards), clamped - Math.floor(visibleCards / 2)),
+    Math.min(Math.max(0, filtered.length - rowsPerView), clamped - Math.floor(rowsPerView / 2)),
   );
-  const view = filtered.slice(start, start + visibleCards);
+  const view = filtered.slice(start, start + rowsPerView);
 
   const renderHeader = () => (
     <Box flexDirection="column">
@@ -280,24 +306,24 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
 
       {mode === 'list' || mode === 'filter' ? (
         <Box marginTop={1} flexDirection="column">
-          {start > 0 ? <Text dimColor>  ▲ {start} more above</Text> : null}
-          {view.map((r, i) => {
-            const isSel = start + i === clamped;
-            return <Card key={r.id} r={r} selected={isSel} />;
-          })}
-          {start + visibleCards < filtered.length
-            ? <Text dimColor>  ▼ {filtered.length - (start + visibleCards)} more below</Text> : null}
-          {filtered.length === 0 ? (
-            <Text dimColor>{records.length === 0 ? '(no sessions yet)' : `(no matches for "${filter}")`}</Text>
-          ) : null}
-          {confirmResumeId && filtered[clamped]?.id === confirmResumeId ? (
-            <Box marginTop={1}>
-              <Text color="yellow">⚠ cwd uncertain for this session — </Text>
-              <Text bold color="yellow">Enter</Text>
-              <Text color="yellow"> again to resume anyway, </Text>
-              <Text bold color="yellow">esc</Text>
-              <Text color="yellow"> to cancel</Text>
-            </Box>
+          <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
+            <TableHeader wName={wName} wBranch={wBranch} wUsed={wUsed} />
+            {start > 0 ? <Text dimColor>  ▲ {start} more above</Text> : null}
+            {view.map((r, i) => (
+              <Row key={r.id} r={r} selected={start + i === clamped} wName={wName} wBranch={wBranch} wUsed={wUsed} />
+            ))}
+            {start + rowsPerView < filtered.length
+              ? <Text dimColor>  ▼ {filtered.length - (start + rowsPerView)} more below</Text> : null}
+            {filtered.length === 0 ? (
+              <Text dimColor>{records.length === 0 ? '(no sessions yet)' : `(no matches for "${filter}")`}</Text>
+            ) : null}
+          </Box>
+          {filtered[clamped] ? (
+            <DetailsPane
+              s={filtered[clamped]}
+              recap={recaps[filtered[clamped].id]}
+              confirming={confirmResumeId === filtered[clamped].id}
+            />
           ) : null}
         </Box>
       ) : null}
@@ -365,10 +391,11 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
           <Text bold color="cyan">keys — Resume</Text>
           <HelpRow k="↑/↓  j/k" v="move selection" />
           <HelpRow k="enter" v="resume the selected session" />
+          <HelpRow k="r" v="recap the session (claude -p · haiku, cached)" />
           <HelpRow k="p" v="peek transcript (↑/↓ · g/G · pgup/pgdn to scroll)" />
           <HelpRow k="/" v="fuzzy-filter the list" />
           <HelpRow k="s" v="full-text search across all transcripts" />
-          <HelpRow k="r" v="refresh sessions" />
+          <HelpRow k="^r" v="refresh sessions" />
           <HelpRow k="⇥ tab" v="switch to New" />
           <HelpRow k="q" v="quit" />
           <Box marginTop={1}><Text dimColor>⚠ = decoded cwd uncertain — Enter twice to resume anyway.  press any key to close</Text></Box>
@@ -481,22 +508,14 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
             </>
           ) : (
             <>
-              <Text dimColor>↑/↓ </Text>
-              <Text color="white">move</Text>
-              <Text dimColor>  ·  enter </Text>
-              <Text color="white">resume</Text>
-              <Text dimColor>  ·  p </Text>
-              <Text color="white">peek</Text>
-              <Text dimColor>  ·  / </Text>
-              <Text color="white">filter</Text>
-              <Text dimColor>  ·  s </Text>
-              <Text color="white">search</Text>
-              <Text dimColor>  ·  r </Text>
-              <Text color="white">refresh</Text>
-              <Text dimColor>  ·  ? </Text>
-              <Text color="white">help</Text>
-              <Text dimColor>  ·  q </Text>
-              <Text color="white">quit</Text>
+              <Text dimColor>↑/↓ </Text><Text color="white">move</Text>
+              <Text dimColor> · ⏎ </Text><Text color="white">resume</Text>
+              <Text dimColor> · r </Text><Text color="white">recap</Text>
+              <Text dimColor> · p </Text><Text color="white">peek</Text>
+              <Text dimColor> · / </Text><Text color="white">filter</Text>
+              <Text dimColor> · s </Text><Text color="white">search</Text>
+              <Text dimColor> · ? </Text><Text color="white">help</Text>
+              <Text dimColor> · q </Text><Text color="white">quit</Text>
             </>
           )}
         </Box>
@@ -505,45 +524,79 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   );
 }
 
-function Card({ r, selected }: { r: SessionRecord; selected: boolean }) {
-  const marker = selected ? '▶' : ' ';
-  const updated = formatDate(r.lastUpdatedAt);
-  const started = formatDate(r.startedAt);
-  const ago = timeAgo(r.lastUpdatedAt);
-  const statusLabel = STATUS_LABEL[r.status];
+function TableHeader({ wName, wBranch, wUsed }: { wName: number; wBranch: number; wUsed: number }) {
   return (
-    <Box flexDirection="column" marginBottom={0}>
-      <Box>
-        <Text bold color={selected ? 'yellow' : 'gray'}>{marker} </Text>
-        <Text color={STATUS_COLOR[r.status]} bold>{STATUS_DOT[r.status]}</Text>
-        <Text>  </Text>
+    <Box>
+      <Box width={4}><Text dimColor bold>ST</Text></Box>
+      <Box width={wName} marginRight={1}><Text dimColor bold>NAME</Text></Box>
+      <Box width={wBranch} marginRight={1}><Text dimColor bold>BRANCH</Text></Box>
+      <Box width={wUsed} marginRight={1}><Text dimColor bold>LAST USED</Text></Box>
+      <Box flexGrow={1}><Text dimColor bold>CWD</Text></Box>
+    </Box>
+  );
+}
+
+function Row({ r, selected, wName, wBranch, wUsed }: {
+  r: SessionRecord; selected: boolean; wName: number; wBranch: number; wUsed: number;
+}) {
+  return (
+    <Box>
+      <Box width={2}><Text bold color={selected ? 'yellow' : 'gray'}>{selected ? '▶' : ' '}</Text></Box>
+      <Box width={2}><Text color={STATUS_COLOR[r.status]} bold>{STATUS_DOT[r.status]}</Text></Box>
+      <Box width={wName} marginRight={1}>
         {!r.cwdDecodeConfident ? <Text color="yellow">⚠ </Text> : null}
-        <Text bold color={selected ? 'cyan' : 'white'}>{r.name}</Text>
-        {statusLabel ? (
-          <>
-            <Text dimColor>   </Text>
-            <Text color={STATUS_COLOR[r.status]}>· {statusLabel}</Text>
-          </>
-        ) : null}
+        <Text bold={selected} color={selected ? 'cyan' : 'white'} wrap="truncate-end">{r.name}</Text>
       </Box>
-      <Box marginLeft={4}>
-        <Text color="magenta">{r.id}</Text>
-        <Text dimColor>   updated </Text>
-        <Text color="cyan">{updated}</Text>
-        <Text dimColor> (</Text>
-        <Text color="yellow">{ago}</Text>
-        <Text dimColor>)   started </Text>
-        <Text color="blue">{started}</Text>
+      <Box width={wBranch} marginRight={1}><Text color="magenta" wrap="truncate-end">{r.gitBranch ?? '–'}</Text></Box>
+      <Box width={wUsed} marginRight={1}><Text color="cyan" wrap="truncate-end">{formatDate(r.lastUpdatedAt)}</Text></Box>
+      <Box flexGrow={1}><Text color="green" wrap="truncate-middle">{tildify(r.cwd)}</Text></Box>
+    </Box>
+  );
+}
+
+/** Always-visible "more info" for the highlighted row (Roy's ask): full metadata + last-used + recap. */
+function DetailsPane({ s, recap, confirming }: { s: SessionRecord; recap?: RecapState; confirming: boolean }) {
+  const recapLines = recap?.text ? recap.text.split('\n').filter((l) => l.trim()).slice(0, 6) : null;
+  return (
+    <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
+      <Box>
+        <Text bold color="cyan">details  </Text>
+        <Text bold color="white" wrap="truncate-end">{s.name}</Text>
       </Box>
-      <Box marginLeft={4}>
-        <Text color="green">{tildify(r.cwd)}</Text>
-        {r.gitBranch ? (
-          <>
-            <Text dimColor>   ⎇ </Text>
-            <Text color="magenta">{r.gitBranch}</Text>
-          </>
-        ) : null}
+      <Box>
+        <Text color="magenta">{s.id}</Text>
+        <Text dimColor>   </Text>
+        <Text color={STATUS_COLOR[s.status]}>{STATUS_DOT[s.status]} {s.status}</Text>
+        {s.gitBranch ? (<><Text dimColor>   ⎇ </Text><Text color="magenta">{s.gitBranch}</Text></>) : null}
+        {!s.cwdDecodeConfident ? <Text color="yellow">   ⚠ cwd uncertain</Text> : null}
       </Box>
+      <Box>
+        <Text dimColor>started </Text><Text color="blue">{formatDate(s.startedAt)}</Text>
+        <Text dimColor>   ·   last used </Text><Text color="cyan">{formatDate(s.lastUpdatedAt)}</Text>
+        <Text dimColor> (</Text><Text color="yellow">{timeAgo(s.lastUpdatedAt)}</Text><Text dimColor> ago)</Text>
+      </Box>
+      <Box><Text color="green" wrap="truncate-middle">{tildify(s.cwd)}</Text></Box>
+      <Box flexDirection="column">
+        <Text bold color={recapLines ? 'green' : 'gray'}>recap</Text>
+        {recap?.loading ? (
+          <Text color="yellow">generating… (claude -p · haiku)</Text>
+        ) : recap?.error ? (
+          <Text color="red" wrap="truncate-end">{recap.error}</Text>
+        ) : recapLines ? (
+          recapLines.map((l, i) => <Text key={i} color="white" wrap="truncate-end">{l}</Text>)
+        ) : (
+          <Text dimColor>press R to generate a recap</Text>
+        )}
+      </Box>
+      {confirming ? (
+        <Box>
+          <Text color="yellow">⚠ cwd uncertain — </Text>
+          <Text bold color="yellow">Enter</Text>
+          <Text color="yellow"> again to resume anyway, </Text>
+          <Text bold color="yellow">esc</Text>
+          <Text color="yellow"> to cancel</Text>
+        </Box>
+      ) : null}
     </Box>
   );
 }

@@ -9,6 +9,7 @@ import { configPath } from '../core/config/paths.js';
 import { listProjects } from '../core/groupScan.js';
 import { listSessions, getSession } from '../core/sessionRepo.js';
 import { readTranscript } from '../core/transcript.js';
+import { getRecap, readCachedRecap } from '../core/recap.js';
 import { planTerminal, resolveCustomTemplate } from '../core/terminalLaunch.js';
 import { setGuiTerminal } from './config.js';
 import type { AgentCliMenuConfig } from '../core/config/types.js';
@@ -97,6 +98,7 @@ export function registerGuiCommands(program: Command): void {
         id: r.id, name: r.name, cwd: r.cwd, status: r.status, active: r.active,
         gitBranch: r.gitBranch ?? null, cwdConfident: r.cwdDecodeConfident,
         lastUpdatedAt: r.lastUpdatedAt.toISOString(),
+        startedAt: r.startedAt.toISOString(),
       }))));
     });
 
@@ -155,6 +157,35 @@ export function registerGuiCommands(program: Command): void {
       const n = Math.max(1, parseInt(opts.lines, 10) || 60);
       const tail = turns.slice(-n).map((t) => ({ role: t.role, kind: t.kind, text: t.text }));
       console.log(JSON.stringify(tail));
+    });
+
+  gui.command('recap')
+    .description('summarize a session via claude -p (cached); JSON {ok,text,generatedAt,fromCache}')
+    .requiredOption('--id <id>')
+    .option('--refresh', 'ignore the cache and regenerate')
+    .option('--cached-only', 'return the cached recap if any, without generating')
+    .action(async (opts: { id: string; refresh?: boolean; cachedOnly?: boolean }) => {
+      // Always exit 0 and convey status in the JSON — the GUI decodes {ok,error} and shows the
+      // real reason. (A non-zero exit collapses to an opaque "exit 1" on the Swift side.)
+      const matches = await getSession(opts.id);
+      if (matches.length !== 1) {
+        console.log(JSON.stringify({ ok: false, error: matches.length === 0 ? 'session not found' : 'ambiguous id' }));
+        return;
+      }
+      const s = matches[0];
+      if (opts.cachedOnly) {
+        const c = readCachedRecap(s.id);
+        console.log(JSON.stringify(c
+          ? { ok: true, text: c.text, generatedAt: c.generatedAt.toISOString(), fromCache: true }
+          : { ok: false, error: 'no cached recap', fromCache: false }));
+        return;
+      }
+      try {
+        const r = await getRecap({ id: s.id, jsonlPath: s.jsonlPath }, { refresh: !!opts.refresh });
+        console.log(JSON.stringify({ ok: true, text: r.text, generatedAt: r.generatedAt.toISOString(), fromCache: r.fromCache }));
+      } catch (e) {
+        console.log(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+      }
     });
 
   gui.command('config-get')

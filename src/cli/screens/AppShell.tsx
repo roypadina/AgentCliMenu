@@ -74,9 +74,10 @@ export function AppShell({ initialTab, config, warnings, projects, configError, 
         <ResumeApp
           initial={sessions}
           onSwitchTab={() => setTab('new')}
-          onResume={(s) => setScreenResult({ kind: 'resume', record: s })}
+          // Terminal actions must exit ink — runApp performs the resume only after unmount.
+          onResume={(s) => { setScreenResult({ kind: 'resume', record: s }); exit(); }}
           onBack={() => setTab('new')}
-          onQuit={() => setScreenResult({ kind: 'quit' })}
+          onQuit={() => { setScreenResult({ kind: 'quit' }); exit(); }}
         />
       )}
     </Box>

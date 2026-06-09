@@ -1,11 +1,33 @@
 import React from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render } from 'ink-testing-library';
 import { NewScreen } from '../../src/cli/screens/NewScreen.js';
 import { AppShell } from '../../src/cli/screens/AppShell.js';
+import { setScreenResult } from '../../src/cli/router.js';
 import { ConfigError } from '../../src/core/config/types.js';
 import type { AgentCliMenuConfig } from '../../src/core/config/types.js';
 import type { ProjectDir } from '../../src/core/groupScan.js';
+import type { SessionRecord } from '../../src/core/types.js';
+
+// Capture ink's exit() so we can assert a terminal action (resume/quit) actually unmounts —
+// runApp performs the resume only AFTER ink exits, so calling setScreenResult alone is not enough.
+const { exitSpy } = vi.hoisted(() => ({ exitSpy: vi.fn() }));
+vi.mock('ink', async (orig) => {
+  const actual = await orig<typeof import('ink')>();
+  return { ...actual, useApp: () => ({ exit: exitSpy }) };
+});
+vi.mock('../../src/cli/router.js', () => ({ setScreenResult: vi.fn() }));
+
+const session = (id: string, name: string): SessionRecord => ({
+  id, name, cwd: '/tmp', cwdDecodeConfident: true, jsonlPath: '/x.jsonl', sizeBytes: 0,
+  startedAt: new Date(), lastUpdatedAt: new Date(), active: false, status: 'inactive',
+});
+
+async function sendKey(stdin: { write: (s: string) => void }, key: string): Promise<void> {
+  await new Promise((r) => setTimeout(r, 10));
+  stdin.write(key);
+  await new Promise((r) => setTimeout(r, 10));
+}
 
 const config: AgentCliMenuConfig = {
   groups: [
@@ -32,6 +54,27 @@ describe('AppShell', () => {
     expect(f).toContain('Resume');   // inactive tab still labelled
     expect(f).toContain('switch');   // ⇥ switch hint
     expect(f).toContain('web-app');  // New content shown by default
+  });
+
+  it('Enter on a resume row sets the resume result AND exits ink', async () => {
+    // Regression: Enter "did nothing" — AppShell set the result but never exited, so runApp
+    // (which resumes only after ink unmounts) never ran. Resume requires BOTH.
+    vi.mocked(setScreenResult).mockClear();
+    exitSpy.mockClear();
+    const { stdin } = render(
+      <AppShell
+        initialTab="resume"
+        config={config}
+        warnings={[]}
+        projects={[]}
+        initialSessions={[session('aaaa1111-0000-0000-0000-000000000000', 'pick me')]}
+      />,
+    );
+    await sendKey(stdin, '\r'); // Enter on the (confident-cwd) session
+    expect(setScreenResult).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'resume', record: expect.objectContaining({ id: 'aaaa1111-0000-0000-0000-000000000000' }) }),
+    );
+    expect(exitSpy).toHaveBeenCalled();
   });
 });
 

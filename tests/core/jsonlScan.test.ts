@@ -36,4 +36,11 @@ describe('scanJsonl', () => {
     expect(r.aiTitle).toBe('Newer auto title');
     expect(r.firstPrompt).toBe('the original prompt');
   });
+
+  it('parses ISO-string timestamps (real Claude Code format), not just numbers', async () => {
+    // Real transcripts use ISO strings; a numeric-only parse left `started` falling back to ctime.
+    const r = await scanJsonl(join(fixtures, 'iso-timestamp.jsonl'));
+    expect(r.firstPrompt).toBe('iso hello');
+    expect(r.firstTimestamp?.toISOString()).toBe('2026-06-04T12:12:49.361Z');
+  });
 });

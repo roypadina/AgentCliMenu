@@ -44,6 +44,10 @@ export function fuzzyMatch(query: string, text: string): FuzzyResult | null {
   // Prefer earlier first match and tighter spans.
   const span = positions[positions.length - 1] - positions[0];
   score -= positions[0] * 0.5 + span * 0.2;
+  // Relevance floor: a subsequence whose spread penalty outweighs its bonuses is noise, not a
+  // match (e.g. "LanGuard" scattered across an unrelated session). Surfacing it makes a picker
+  // resume the wrong row. Contiguous/boundary matches stay comfortably positive.
+  if (score < 0) return null;
   return { score, positions };
 }
 
