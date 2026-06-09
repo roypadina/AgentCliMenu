@@ -1,5 +1,10 @@
 import { Command } from 'commander';
 import { listSessions, getSession } from '../core/sessionRepo.js';
+
+// Version is baked in at build time from package.json (tsup `define`), so it never drifts from a
+// hardcoded literal. Running from source via tsx (no define) falls back to 'dev'.
+declare const __ACM_VERSION__: string;
+const PKG_VERSION = typeof __ACM_VERSION__ === 'string' ? __ACM_VERSION__ : 'dev';
 import { renderTable } from './render.js';
 import { renderPeek } from './peek.js';
 import { resume, ResumeError } from './resume.js';
@@ -30,7 +35,7 @@ export function buildProgram(): Command {
   program
     .name('agent-cli-menu')
     .description('Agent CLI Menu — start a new Claude/Codex session in a project, or search + resume an existing one')
-    .version('0.2.1')
+    .version(PKG_VERSION)
     .option('-r, --resume', 'open the Resume menu (default opens New)')
     .action(async (opts: { resume?: boolean }) => {
       const { runApp } = await import('./router.js');
