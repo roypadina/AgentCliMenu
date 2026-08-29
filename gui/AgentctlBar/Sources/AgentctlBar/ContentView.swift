@@ -75,6 +75,10 @@ struct ContentView: View {
     /// The window hosting THIS copy of the view — the popover and the detached window each have
     /// one, and a local monitor sees keys meant for either.
     @State private var hostWindow: NSWindow?
+    /// Which of Remind / Due has its `Custom…` field open, if either.
+    @State private var customWhen: AnnField?
+    /// Measured width of the details pane — the action row wraps below 240pt.
+    @State private var paneWidth: CGFloat = 0
 
     private var query: String { search.trimmingCharacters(in: .whitespaces) }
 
@@ -285,75 +289,15 @@ struct ContentView: View {
         }
     }
 
-    /// Name / flags / note / done / reminder, editable in place. Each field commits on ⏎; the
-    /// buttons commit immediately. Same store the TUI and the `agentctl` commands write.
+    /// Name, labels, flags and note — plus the three things you *do* to a session. Those are three
+    /// different species of act, so they get three zones rather than one row of identical buttons:
+    /// a state you check off, two setters that show what they are set to, and a place in the lists.
+    /// Fields commit on ⏎; the controls commit immediately.
     @ViewBuilder
     private func annotationEditor(_ s: Session) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                Text("Yours").font(.caption).bold()
-                if let at = s.remindAt {
-                    Label(s.isReminderDue ? "due \(fmtIso(at))" : "remind \(fmtIso(at))", systemImage: "bell.fill")
-                        .font(.caption2).foregroundColor(s.isReminderDue ? .red : .purple)
-                }
-                Spacer()
-                Button {
-                    Cm.annotate(id: s.id, done: !s.isDone) { Task { await refreshSessions() } }
-                } label: {
-                    Label(s.isDone ? "Done" : "Mark done",
-                          systemImage: s.isDone ? "checkmark.circle.fill" : "circle")
-                }
-                .font(.caption2).buttonStyle(.borderless)
-                .foregroundColor(s.isDone ? .green : .secondary)
-                .help(s.isDone ? "Reopen this session" : "Mark this session finished")
-
-                Button {
-                    Cm.annotate(id: s.id, hidden: !s.isHidden) { Task { await refreshSessions() } }
-                } label: {
-                    Label(s.isHidden ? "Unhide" : "Hide", systemImage: s.isHidden ? "eye" : "eye.slash")
-                }
-                .font(.caption2).buttonStyle(.borderless).foregroundColor(.secondary)
-                .help(s.isHidden ? "Show it in the normal list again"
-                                 : "Keep it out of the normal list (still in Hidden)")
-
-                Button {
-                    Cm.annotate(id: s.id, deleted: !s.isDeleted) { Task { await refreshSessions() } }
-                } label: {
-                    Label(s.isDeleted ? "Restore" : "Delete", systemImage: s.isDeleted ? "arrow.uturn.backward" : "trash")
-                }
-                .font(.caption2).buttonStyle(.borderless)
-                .foregroundColor(s.isDeleted ? .secondary : .red)
-                .help(s.isDeleted ? "Put it back in the lists"
-                                  : "Keep it out of every list. Recoverable — the transcript is never touched.")
-
-                Menu {
-                    ForEach(["1h", "3h", "tomorrow 9am", "3d"], id: \.self) { w in
-                        Button("in \(w)") { Cm.annotate(id: s.id, remind: w) { Task { await refreshSessions() } } }
-                    }
-                    if s.remindAt != nil {
-                        Divider()
-                        Button("Clear reminder") { Cm.annotate(id: s.id, remind: "") { Task { await refreshSessions() } } }
-                    }
-                } label: {
-                    Label("Remind", systemImage: "bell")
-                }
-                .font(.caption2).menuStyle(.borderlessButton).fixedSize()
-                .help("Flag this session in the picker at a chosen time")
-
-                Menu {
-                    ForEach(["today 17:00", "tomorrow 17:00", "3d", "1w"], id: \.self) { w in
-                        Button(w) { Cm.annotate(id: s.id, due: w) { Task { await refreshSessions() } } }
-                    }
-                    if s.dueAt != nil {
-                        Divider()
-                        Button("Clear due date") { Cm.annotate(id: s.id, due: "") { Task { await refreshSessions() } } }
-                    }
-                } label: {
-                    Label("Due", systemImage: "calendar")
-                }
-                .font(.caption2).menuStyle(.borderlessButton).fixedSize()
-                .help("When the work in this session is actually due")
-            }
+        VStack(alignment: .leading, spacing: 4) {
+            actionRow(s)
+            if let field = customWhen { customWhenField(s, field) }
             TextField("name this session", text: $annName)
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .focused($annFocus, equals: .name)
@@ -377,19 +321,132 @@ struct ContentView: View {
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .focused($annFocus, equals: .note)
                 .onSubmit { Cm.annotate(id: s.id, note: annNote) { Task { await refreshSessions() } } }
-            // The menus above cover the common presets; these take anything the CLI parses
-            // (2h, 30m, 3d, "tomorrow 9am", 17:00, an ISO date). Empty clears.
-            HStack(spacing: 4) {
-                TextField("remind — 2h, tomorrow 9am…", text: $annRemind)
-                    .textFieldStyle(.roundedBorder).font(.caption2)
-                    .focused($annFocus, equals: .remind)
-                    .onSubmit { Cm.annotate(id: s.id, remind: annRemind) { Task { await refreshSessions() } } }
-                TextField("due — 3d, friday 17:00…", text: $annDue)
-                    .textFieldStyle(.roundedBorder).font(.caption2)
-                    .focused($annFocus, equals: .due)
-                    .onSubmit { Cm.annotate(id: s.id, due: annDue) { Task { await refreshSessions() } } }
+        }
+        .background(GeometryReader { g in
+            Color.clear.preference(key: PaneWidthKey.self, value: g.size.width)
+        })
+        .onPreferenceChange(PaneWidthKey.self) { paneWidth = $0 }
+    }
+
+    /// Done · when · where. Wraps to two lines once the pane is too narrow to hold all three —
+    /// in the popover it is, which is how four of the old row's seven controls came to be clipped
+    /// off screen entirely.
+    @ViewBuilder
+    private func actionRow(_ s: Session) -> some View {
+        if paneWidth > 0 && paneWidth < 240 {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) { doneToggle(s); Spacer(minLength: 0); shelfMenu(s) }
+                HStack(spacing: 8) { whenMenu(s, .remind); whenMenu(s, .due); Spacer(minLength: 0) }
+            }
+        } else {
+            HStack(spacing: 8) {
+                doneToggle(s)
+                whenMenu(s, .remind)
+                whenMenu(s, .due)
+                Spacer(minLength: 0)
+                shelfMenu(s)
             }
         }
+    }
+
+    /// The platform's own two-state display. A checkbox reads as checked without swapping its
+    /// label, which the old "Mark done" → "Done" button could not.
+    private func doneToggle(_ s: Session) -> some View {
+        Toggle("Done", isOn: Binding(
+            get: { s.isDone },
+            set: { on in Cm.annotate(id: s.id, done: on) { Task { await refreshSessions() } } }
+        ))
+        .toggleStyle(.checkbox)
+        .font(.caption)
+        .help(s.isDone ? "Reopen this session" : "Mark this session finished — also silences its reminder")
+    }
+
+    /// A setter shows its verb when empty and its value when set, so the control doubles as the
+    /// display and there is no separate badge to keep in sync.
+    private func whenMenu(_ s: Session, _ which: AnnField) -> some View {
+        let isRemind = which == .remind
+        let iso = isRemind ? s.remindAt : s.dueAt
+        let live = isRemind ? s.isReminderDue : s.isOverdue
+        let presets = isRemind ? ["1h", "3h", "tomorrow 9am", "3d"] : ["today 17:00", "tomorrow 17:00", "3d", "1w"]
+        return Menu {
+            ForEach(presets, id: \.self) { w in
+                Button(isRemind ? "in \(w)" : w) { setWhen(s, which, w) }
+            }
+            Divider()
+            Button("Custom…") { openCustomWhen(s, which) }
+            if iso != nil { Button(isRemind ? "Clear reminder" : "Clear due date") { setWhen(s, which, "") } }
+        } label: {
+            Label(whenLabel(iso, verb: isRemind ? "Remind" : "Due"),
+                  systemImage: isRemind ? "bell" : "calendar")
+        }
+        .font(.caption2).menuStyle(.borderlessButton).fixedSize()
+        .foregroundColor(live ? .red : .secondary)
+        .help(isRemind ? "Flag this session in the picker at a chosen time"
+                       : "When the work in this session is actually due")
+    }
+
+    /// Hidden and deleted are not things done TO a session — they are which list it sits in, the
+    /// same three shelves the header's view menu reads. So it is one place-picker, not two verbs,
+    /// and it is never red and never a trash can: nothing here destroys anything.
+    private func shelfMenu(_ s: Session) -> some View {
+        let shelf = s.isDeleted ? "Deleted" : s.isHidden ? "Hidden" : "Listed"
+        return Menu {
+            Picker("", selection: Binding(
+                get: { shelf },
+                set: { moveToShelf(s, $0) }
+            )) {
+                Text("Listed").tag("Listed")
+                Text("Hidden").tag("Hidden")
+                Text("Deleted").tag("Deleted")
+            }
+            .pickerStyle(.inline).labelsHidden()
+        } label: {
+            Label(shelf, systemImage: shelf == "Deleted" ? "archivebox"
+                                    : shelf == "Hidden" ? "eye.slash" : "list.bullet")
+        }
+        .font(.caption2).menuStyle(.borderlessButton).fixedSize()
+        .foregroundColor(shelf == "Listed" ? .secondary : .orange)
+        .help("Which list this session appears in. Hidden and Deleted only change the listing — the transcript is never touched and it still resumes by id.")
+    }
+
+    /// The transient field behind `Custom…` (and ⌘T / ⌘U): everything the CLI parses, costing no
+    /// height until it is asked for.
+    private func customWhenField(_ s: Session, _ which: AnnField) -> some View {
+        TextField("2h · 3d · tomorrow 9am · 17:00 · an ISO date",
+                  text: which == .remind ? $annRemind : $annDue)
+            .textFieldStyle(.roundedBorder).font(.caption2)
+            .focused($annFocus, equals: which)
+            .onSubmit {
+                setWhen(s, which, which == .remind ? annRemind : annDue)
+                customWhen = nil
+            }
+    }
+
+    private func setWhen(_ s: Session, _ which: AnnField, _ value: String) {
+        if which == .remind { Cm.annotate(id: s.id, remind: value) { Task { await refreshSessions() } } }
+        else { Cm.annotate(id: s.id, due: value) { Task { await refreshSessions() } } }
+    }
+
+    private func openCustomWhen(_ s: Session, _ which: AnnField) {
+        annRemind = ""; annDue = ""
+        customWhen = which
+        DispatchQueue.main.async { annFocus = which }
+    }
+
+    private func moveToShelf(_ s: Session, _ shelf: String) {
+        Cm.annotate(id: s.id, hidden: shelf == "Hidden", deleted: shelf == "Deleted") {
+            Task { await refreshSessions() }
+        }
+    }
+
+    /// "Remind" when nothing is set, the value itself once it is — "◆ 2h" beats "Remind" plus a
+    /// badge somewhere else on screen.
+    private func whenLabel(_ iso: String?, verb: String) -> String {
+        guard let iso, let d = ContentView.isoFrac.date(from: iso) ?? ContentView.isoPlain.date(from: iso) else { return verb }
+        let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX")
+        let days = d.timeIntervalSinceNow / 86_400
+        df.dateFormat = days < 1 && days > -1 ? "HH:mm" : days < 7 && days > 0 ? "E HH:mm" : "d MMM"
+        return df.string(from: d)
     }
 
     /// Pull a session's annotation into the editor fields — once per session, so it never
@@ -403,6 +460,7 @@ struct ContentView: View {
         annNote = s.note ?? ""
         annRemind = ""
         annDue = ""
+        customWhen = nil
         copiedId = nil
     }
 
@@ -733,6 +791,9 @@ struct ContentView: View {
         guard tab == .resume, let s = selectedSession else { return true }
         showPeek = true
         loadAnnotationFields(id: s.id)
+        // Remind and Due have no standing field — a SwiftUI Menu cannot be opened from code, so
+        // the key goes straight to the one thing behind it that can take typing.
+        if field == .remind || field == .due { openCustomWhen(s, field); return true }
         // The pane may have only just been added to the hierarchy; focus after it exists.
         DispatchQueue.main.async { annFocus = field }
         return true
@@ -781,6 +842,7 @@ struct ContentView: View {
         Cm.resume(id: s.id, profileHome: profileOverride?.home); onAction()
     }
     private func cancel() {
+        if customWhen != nil { customWhen = nil; annFocus = nil; searchFocusToken += 1; return }
         if annFocus != nil { annFocus = nil; searchFocusToken += 1; return }
         if confirmResumeId != nil { confirmResumeId = nil; return }
         if !search.isEmpty { search = ""; return }
@@ -893,4 +955,12 @@ struct NewDirView: View {
         .padding(16).frame(width: 360)
         .onAppear { if base.isEmpty { base = bases.first?.path ?? "" } }
     }
+}
+
+
+/// Width of the details pane, so the action row knows when to wrap. `ViewThatFits` and the
+/// `Layout` protocol are macOS 13+; this app targets 12.
+private struct PaneWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
