@@ -49,6 +49,29 @@ describe('isPidAlive', () => {
   });
 });
 
+describe('side profiles', () => {
+  it('reads sessions from every ~/.claude* profile', () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), 'acm-profiles-'));
+    const origHome = process.env.HOME;
+    const origCcsm = process.env.CCSM_HOME;
+    process.env.HOME = fakeHome;
+    delete process.env.CCSM_HOME;
+    try {
+      for (const [profile, pid] of [['.claude', 1111], ['.claude3', 2222]] as const) {
+        mkdirSync(join(fakeHome, profile, 'sessions'), { recursive: true });
+        writeFileSync(join(fakeHome, profile, 'sessions', `${pid}.json`), JSON.stringify({
+          pid, sessionId: `id-${pid}`, cwd: '/x', startedAt: 1, updatedAt: 2, status: 'idle',
+        }));
+      }
+      expect(readLiveSessions().map(s => s.pid).sort()).toEqual([1111, 2222]);
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+      if (origHome === undefined) delete process.env.HOME; else process.env.HOME = origHome;
+      if (origCcsm === undefined) delete process.env.CCSM_HOME; else process.env.CCSM_HOME = origCcsm;
+    }
+  });
+});
+
 describe('liveSessionById', () => {
   it('returns null when no matching session', () => {
     expect(liveSessionById('not-there')).toBeNull();

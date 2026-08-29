@@ -22,7 +22,8 @@ Node.js + TypeScript CLI/TUI. One menu with two halves: **New** — start a new 
 ```
 src/core/                 zero ink/react imports — pure data
   types.ts                SessionRecord, ListOptions, LiveSession, TranscriptTurn
-  paths.ts                ccsmHome / projectsDir / sessionsDir (honors CCSM_HOME)
+  paths.ts                ccsmHome / projectsDir / sessionsDir (honors CCSM_HOME);
+                          claudeHomes / projectsDirs / sessionsDirs = all ~/.claude* profiles
   decode.ts               encoded-cwd → cwd, FS-verified recursive pruned search
   jsonlScan.ts            streaming scan: first prompt, custom-title, ai-title, first ts
   liveState.ts            ~/.claude/sessions/<pid>.json + kill -0 + ps comm check
@@ -65,7 +66,8 @@ docs/superpowers/
 - **Cwd encoding is ambiguous**. `~/.claude/projects/<encoded-cwd>/` uses `-` as both the leading marker and the path separator. Real `-` in segment names (e.g. `My-App-Repo`) collides. `decode.ts` recursively walks candidates with `existsSync` pruning. When no match, returns `cwdDecodeConfident: false` — UI must surface this and `resume` refuses without `--cwd <override>`.
 - **`--dangerously-skip-permissions` is hardcoded** into `cli/resume.ts`. Never expose a config flag to remove it. Only `resume` adds it; `peek` / read paths never do.
 - **Session names** come from JSONL in priority order: `type:custom-title.customTitle` (from `/rename`) → `type:ai-title.aiTitle` (auto-generated) → first user prompt (with tag stripping) → `(no prompt yet)`.
-- **Status detection**: a session is `busy`/`idle` only when a matching `~/.claude/sessions/<pid>.json` file exists, `kill -0 <pid>` succeeds, and `ps -o comm= -p <pid>` matches `/claude/i`. Otherwise `inactive`.
+- **Status detection**: a session is `busy`/`idle` only when a matching `<profile>/sessions/<pid>.json` file exists, `kill -0 <pid>` succeeds, and `ps -o comm= -p <pid>` matches `/claude/i`. Otherwise `inactive`.
+- **Scan every Claude profile.** `CLAUDE_CONFIG_DIR` lets one machine run several homes (`~/.claude`, `~/.claude2`, `~/.claude-work`). Each keeps its own `sessions/` dir, so scanning only `~/.claude` reports every side-profile session as `inactive`. `claudeHomes()` globs `~/.claude*` dirs (primary first); `projectsDirs()`/`sessionsDirs()` map + realpath-dedupe them (profiles often symlink `projects/` to the primary — without the dedupe every session would list twice). `CCSM_HOME` still pins the scan to a single home.
 
 ## AgentCliMenu launcher conventions
 
