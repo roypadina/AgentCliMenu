@@ -154,7 +154,7 @@ struct ContentView: View {
                                             : showPeek ? "⏎ resume   ·   ⌘P close   ·   ⌘/ shortcuts"
                                                        : "⏎ resume   ·   ⌘P details   ·   ⌘/ shortcuts"))
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(footerNote == nil ? .secondary : .orange)
+                .foregroundColor(footerNote == nil ? .secondary : Tone.warn)
                 .lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 4)
             Button { showShortcuts = true } label: { Image(systemName: "questionmark.circle").font(.system(size: 11)) }
@@ -168,7 +168,7 @@ struct ContentView: View {
             header
             if let e = errorText {
                 Label(e, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption).foregroundColor(.red).lineLimit(3)
+                    .font(.caption).foregroundColor(Tone.alarm).lineLimit(3)
             }
             if tab == .new {
                 newList
@@ -237,7 +237,7 @@ struct ContentView: View {
                                         : kindFilter == "interactive" ? "person" : "list.bullet")
                     }
                     .menuStyle(.borderlessButton).fixedSize()
-                    .foregroundColor(sessionView != "normal" || kindFilter != nil || hideDone ? .orange : .secondary)
+                    .foregroundColor(sessionView != "normal" || kindFilter != nil || hideDone ? Tone.warn : .secondary)
                     .help("Which sessions to list: normal, hidden or deleted; interactive or tool runs")
                 }
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }.buttonStyle(.borderless).help("Settings")
@@ -313,7 +313,7 @@ struct ContentView: View {
         return Button { selection = index; Cm.launch(dir: d.path, tool: selectedTool); onAction() } label: {
             HStack {
                 Text(d.name).fontWeight(sel ? .semibold : .regular)
-                if let b = d.branch { Text("⎇ \(b)").font(.caption2).foregroundColor(.purple) }
+                if let b = d.branch { Text("⎇ \(b)").font(.caption2).foregroundColor(Tone.branch) }
                 Spacer()
                 Text(age(d.timeMs)).font(.caption2).foregroundColor(.secondary)
             }
@@ -479,7 +479,7 @@ struct ContentView: View {
             }
         }
         .font(.caption2).menuStyle(.borderlessButton).fixedSize()
-        .foregroundColor(live ? .red : .secondary)
+        .foregroundColor(live ? Tone.alarm : .secondary)
         .help(isRemind ? "Flag this session in the picker at a chosen time"
                        : "When the work in this session is actually due")
     }
@@ -504,7 +504,7 @@ struct ContentView: View {
                                     : shelf == "Hidden" ? "eye.slash" : "list.bullet")
         }
         .font(.caption2).menuStyle(.borderlessButton).fixedSize()
-        .foregroundColor(shelf == "Listed" ? .secondary : .orange)
+        .foregroundColor(shelf == "Listed" ? .secondary : Tone.warn)
         .help("Which list this session appears in. Hidden and Deleted only change the listing — the transcript is never touched and it still resumes by id.")
     }
 
@@ -609,14 +609,14 @@ struct ContentView: View {
             if s.isToolRun {
                 glyph("▸", .secondary, "Started by a tool, not by you" + (s.entrypoint.map { " (\($0))" } ?? ""))
             }
-            if s.isDone { glyph("✓", .green, "Done") }
+            if s.isDone { glyph("✓", Tone.ok, "Done") }
             if !s.tags.isEmpty { glyph("⚑", .secondary, s.tags.map { "#" + $0 }.joined(separator: " ")) }
             if let n = s.note { glyph("✎", .secondary, n) }
             if s.remindAt != nil {
-                glyph("◆", s.isReminderDue ? .red : .secondary, s.isReminderDue ? "Reminder due" : "Reminder set")
+                glyph("◆", s.isReminderDue ? Tone.alarm : .secondary, s.isReminderDue ? "Reminder due" : "Reminder set")
             }
             if s.dueAt != nil {
-                glyph("✱", s.isOverdue ? .red : .secondary, s.isOverdue ? "Overdue" : "Has a due date")
+                glyph("✱", s.isOverdue ? Tone.alarm : .secondary, s.isOverdue ? "Overdue" : "Has a due date")
             }
         }
     }
@@ -638,7 +638,7 @@ struct ContentView: View {
                     Image(systemName: "circle.fill").font(.system(size: 9)).foregroundColor(statusColor(s.status))
                         .help(statusText(s.status)).accessibilityLabel(statusText(s.status))
                     if !s.cwdConfident {
-                        Image(systemName: "exclamationmark.triangle.fill").font(.caption2).foregroundColor(.orange)
+                        Image(systemName: "exclamationmark.triangle.fill").font(.caption2).foregroundColor(Tone.warn)
                             .help("cwd uncertain — confirm before resuming")
                     }
                     Text(s.name).font(.system(size: 13))
@@ -658,13 +658,13 @@ struct ContentView: View {
                     if let b = s.gitBranch, rowWidth == 0 || rowWidth >= 340 {
                         Text("· ⎇ \(b)")
                             .font(.system(size: 11, design: .monospaced))
-                            .foregroundColor(.purple)
+                            .foregroundColor(Tone.branch)
                             .lineLimit(1).layoutPriority(-1)
                     }
                 }
                 if confirming {
                     Text("Working directory is a guess — ⏎ again resumes there anyway · esc cancels")
-                        .font(.system(size: 11)).foregroundColor(.orange)
+                        .font(.system(size: 11)).foregroundColor(Tone.warn)
                 }
             }
             .contentShape(Rectangle())
@@ -705,7 +705,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         if let b = s.gitBranch {
-                            Text("⎇ \(b)").font(.system(size: 11, design: .monospaced)).foregroundColor(.purple)
+                            Text("⎇ \(b)").font(.system(size: 11, design: .monospaced)).foregroundColor(Tone.branch)
                         }
                         Text(tilde(s.cwd))
                             .font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
@@ -729,7 +729,7 @@ struct ContentView: View {
                             Image(systemName: copiedId == s.id ? "checkmark" : "doc.on.doc").font(.system(size: 10))
                         }
                         .buttonStyle(.borderless)
-                        .foregroundColor(copiedId == s.id ? .green : .secondary)
+                        .foregroundColor(copiedId == s.id ? Tone.ok : .secondary)
                         .help("Copy `agentctl resume \(s.id)` — paste it in any terminal to pick this session back up")
                         .accessibilityLabel("Copy resume command")
                         Text(spanLine(s)).font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
@@ -748,13 +748,13 @@ struct ContentView: View {
                                 Text(acct).font(.system(size: 11, design: .monospaced))
                             }
                             .menuStyle(.borderlessButton).fixedSize()
-                            .foregroundColor(profileOverride == nil ? .accentColor : .orange)
+                            .foregroundColor(profileOverride == nil ? .accentColor : Tone.warn)
                             .help("Which Claude account this session resumes under  (⇧⌘A)")
                         }
                     }
                     if !s.cwdConfident {
                         Text("! the working directory is a guess")
-                            .font(.system(size: 11)).foregroundColor(.orange)
+                            .font(.system(size: 11)).foregroundColor(Tone.warn)
                     }
                 }
                 .padding(.top, 2)
@@ -771,11 +771,15 @@ struct ContentView: View {
                     .help("Summarize this session with claude -p (haiku). Generating again replaces it.  (⌘R)")
                 }
                 if let err = recapError[s.id] {
-                    Text(err).font(.caption2).foregroundColor(.red).lineLimit(3)
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(err).font(.system(size: 11)).foregroundColor(Tone.alarm).lineLimit(3)
+                        Button("Try again") { generateRecap(s.id, refresh: true) }.font(.system(size: 11))
+                    }
                 } else if let t = recapCache[s.id] {
-                    Text(t).font(.caption2).foregroundColor(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                    Text(t).font(.system(size: 11)).foregroundColor(.primary)
+                        .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 } else if recapLoadingId == s.id {
-                    Text("Writing a recap…").font(.system(size: 11)).foregroundColor(.secondary)
+                    Text("Summarizing with claude (haiku)…").font(.system(size: 11)).foregroundColor(.secondary)
                 } else {
                     Text("Generate a recap to see what this session was doing.")
                         .font(.system(size: 11)).foregroundColor(.secondary)
@@ -808,8 +812,6 @@ struct ContentView: View {
                 } else {
                     Color.clear
                 }
-            } else {
-                Text("Select a session").font(.caption2).foregroundColor(.secondary)
             }
             Spacer(minLength: 0)
         }
@@ -1044,9 +1046,9 @@ struct ContentView: View {
     /// Role colours collapse to the token set: nothing in a transcript earns green or cyan, which
     /// mean done and nothing respectively everywhere else.
     private func roleColor(_ r: String) -> Color {
-        switch r { case "assistant": return .primary; case "tool": return .orange; default: return .secondary }
+        switch r { case "assistant": return .primary; case "tool": return Tone.warn; default: return .secondary }
     }
-    private func statusColor(_ s: String) -> Color { s == "busy" ? .green : s == "idle" ? .yellow : .gray }
+    private func statusColor(_ s: String) -> Color { s == "busy" ? Tone.ok : s == "idle" ? Tone.idle : Tone.off }
     private func statusText(_ s: String) -> String { s == "busy" ? "busy" : s == "idle" ? "idle" : "inactive" }
     private func tilde(_ p: String) -> String { p.replacingOccurrences(of: NSHomeDirectory(), with: "~") }
     /// ISO string → epoch ms, for `age`. Returns now on an unparseable date, which reads as "0m"

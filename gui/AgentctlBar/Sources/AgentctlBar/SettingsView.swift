@@ -133,7 +133,7 @@ struct SettingsView: View {
     private func sectionTitle(_ s: String) -> some View { Text(s).font(.subheadline).bold() }
     private func hint(_ s: String) -> some View { Text(s).font(.caption).foregroundColor(.secondary) }
     private func addButton(_ a: @escaping () -> Void) -> some View { Button(action: a) { Image(systemName: "plus.circle") }.buttonStyle(.borderless) }
-    private func removeButton(_ a: @escaping () -> Void) -> some View { Button(action: a) { Image(systemName: "minus.circle").foregroundColor(.red) }.buttonStyle(.borderless) }
+    private func removeButton(_ a: @escaping () -> Void) -> some View { Button(action: a) { Image(systemName: "minus.circle").foregroundColor(Tone.alarm) }.buttonStyle(.borderless) }
 
     /// Two-way bridge between a "#RRGGBB" string field and the native ColorPicker.
     /// A bad/empty hex shows gray; picking a color writes back a normalized hex.

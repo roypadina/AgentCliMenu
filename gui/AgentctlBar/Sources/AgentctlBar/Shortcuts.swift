@@ -44,10 +44,10 @@ enum Shortcut {
             Row(keys: "⇧⌘N", what: "Write a note"),
             Row(keys: "⌘L", what: "Labels — a ticket, a repo, a topic"),
             Row(keys: "⇧⌘F", what: "Flags — todo, later, blocked"),
-            Row(keys: "⌘T", what: "Remind me about it"),
-            Row(keys: "⌘U", what: "Set when the work is due"),
+            Row(keys: "⌘T", what: "Remind me — opens the when field"),
+            Row(keys: "⌘U", what: "Due — opens the when field"),
             Row(keys: "⌘D", what: "Mark it done"),
-            Row(keys: "⇧⌘H", what: "Hide it from the normal list"),
+            Row(keys: "⇧⌘H", what: "Move it to Hidden"),
             Row(keys: "⌘⌫", what: "Move it to Deleted — recoverable, the transcript is untouched"),
         ]),
         Group(title: "Other", rows: [
@@ -56,6 +56,20 @@ enum Shortcut {
             Row(keys: "⌘,", what: "Settings"),
             Row(keys: "⌘/", what: "This list — press it again to close"),
         ]),
+    ]
+}
+
+/// The row glyphs, with what they mean. Identical characters, order and colour rules to the
+/// terminal menu's table — learning them in one surface is learning them in both.
+enum GlyphLegend {
+    static let rows: [(String, String)] = [
+        ("▸", "started by a tool, not by you"),
+        ("✓", "done"),
+        ("⚑", "flagged"),
+        ("✎", "has a note"),
+        ("◆", "reminder — red once due"),
+        ("✱", "due date — red once overdue"),
+        ("!", "the working directory is a guess"),
     ]
 }
 
@@ -126,6 +140,21 @@ struct ShortcutsSheet: View {
                                         .foregroundColor(.secondary)
                                     Spacer(minLength: 0)
                                 }
+                            }
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("ROW MARKS")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .kerning(0.6)
+                        ForEach(GlyphLegend.rows, id: \.0) { g, meaning in
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Text(g)
+                                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                    .frame(width: 62, alignment: .trailing)
+                                Text(meaning).font(.system(size: 12)).foregroundColor(.secondary)
+                                Spacer(minLength: 0)
                             }
                         }
                     }
