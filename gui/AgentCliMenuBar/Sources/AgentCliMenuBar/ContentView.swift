@@ -69,7 +69,10 @@ struct ContentView: View {
     }
     private var newFlat: [Dir] { newSections.flatMap { $0.dirs } }
     private var resumeItems: [Session] {
-        Fuzzy.rank(query, sessions) { "\($0.name)  \(tilde($0.cwd))  \($0.id)" }
+        Fuzzy.rank(query, sessions) {
+            "\($0.name)  \(tilde($0.cwd))  \($0.id)  "
+                + $0.tags.map { "#" + $0 }.joined(separator: " ") + "  " + ($0.note ?? "")
+        }
     }
     private var count: Int { tab == .new ? newFlat.count : resumeItems.count }
     private var selIndex: Int { min(max(0, selection), max(0, count - 1)) }
@@ -220,6 +223,29 @@ struct ContentView: View {
         }
     }
 
+    /// Compact annotation markers: done · flagged · noted · reminder (red once due).
+    @ViewBuilder
+    private func annotationBadges(_ s: Session) -> some View {
+        HStack(spacing: 3) {
+            if s.isDone {
+                Image(systemName: "checkmark.circle.fill").font(.caption2).foregroundColor(.green)
+                    .help("marked done")
+            }
+            if !s.tags.isEmpty {
+                Image(systemName: "tag.fill").font(.caption2).foregroundColor(.yellow)
+                    .help(s.tags.map { "#" + $0 }.joined(separator: " "))
+            }
+            if let n = s.note {
+                Image(systemName: "note.text").font(.caption2).foregroundColor(.cyan).help(n)
+            }
+            if s.remindAt != nil {
+                Image(systemName: "bell.fill").font(.caption2)
+                    .foregroundColor(s.isReminderDue ? .red : .purple)
+                    .help(s.isReminderDue ? "reminder due" : "reminder set")
+            }
+        }
+    }
+
     private func sessionRow(_ s: Session, index: Int) -> some View {
         let sel = index == selIndex
         let confirming = confirmResumeId == s.id && sel
@@ -233,6 +259,7 @@ struct ContentView: View {
                             .help("cwd uncertain — confirm before resuming")
                     }
                     Text(s.name).fontWeight(sel ? .semibold : .regular).lineLimit(1)
+                    annotationBadges(s)
                     Spacer()
                     if let b = s.gitBranch { Text("⎇ \(b)").font(.caption2).foregroundColor(.purple) }
                 }
@@ -267,6 +294,25 @@ struct ContentView: View {
                     Text("started    \(fmtIso(s.startedAt))").font(.caption2).foregroundColor(.secondary)
                     Text("last used  \(fmtIso(s.lastUpdatedAt))").font(.caption2).foregroundColor(.secondary)
                     Text(tilde(s.cwd)).font(.caption2).foregroundColor(.secondary).lineLimit(2).textSelection(.enabled)
+                    if s.hasAnnotation {
+                        HStack(spacing: 6) {
+                            if s.isDone {
+                                Label("done", systemImage: "checkmark.circle.fill")
+                                    .font(.caption2).foregroundColor(.green)
+                            }
+                            ForEach(s.tags, id: \.self) { t in
+                                Text("#\(t)").font(.caption2).foregroundColor(.yellow)
+                            }
+                            if let at = s.remindAt {
+                                Label(s.isReminderDue ? "due \(fmtIso(at))" : "remind \(fmtIso(at))",
+                                      systemImage: "bell.fill")
+                                    .font(.caption2).foregroundColor(s.isReminderDue ? .red : .purple)
+                            }
+                        }
+                        if let n = s.note {
+                            Text(n).font(.caption2).foregroundColor(.cyan).lineLimit(3).textSelection(.enabled)
+                        }
+                    }
                 }
                 // ── recap ──
                 HStack(spacing: 6) {

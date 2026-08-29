@@ -22,6 +22,14 @@ struct Session: Codable, Identifiable {
     let id: String; let name: String; let cwd: String; let status: String
     let active: Bool; let gitBranch: String?; let cwdConfident: Bool; let lastUpdatedAt: String
     let startedAt: String?
+    // User annotations. Optional so an older CLI (which does not emit them) still decodes.
+    let flags: [String]?; let note: String?; let done: Bool?
+    let remindAt: String?; let remindDue: Bool?
+
+    var tags: [String] { flags ?? [] }
+    var isDone: Bool { done ?? false }
+    var isReminderDue: Bool { remindDue ?? false }
+    var hasAnnotation: Bool { isDone || !tags.isEmpty || note != nil || remindAt != nil }
 }
 struct RecapResponse: Codable {
     let ok: Bool; let text: String?; let generatedAt: String?; let fromCache: Bool?; let error: String?

@@ -12,6 +12,8 @@ import { readTranscript } from '../core/transcript.js';
 import { getRecap, readCachedRecap } from '../core/recap.js';
 import { planTerminal, resolveCustomTemplate } from '../core/terminalLaunch.js';
 import { setGuiTerminal } from './config.js';
+import { shellQuote } from './launch.js';
+import { isReminderDue } from '../core/annotations.js';
 import type { AgentCliMenuConfig } from '../core/config/types.js';
 
 function readStdin(): Promise<string> {
@@ -99,6 +101,11 @@ export function registerGuiCommands(program: Command): void {
         gitBranch: r.gitBranch ?? null, cwdConfident: r.cwdDecodeConfident,
         lastUpdatedAt: r.lastUpdatedAt.toISOString(),
         startedAt: r.startedAt.toISOString(),
+        flags: r.annotation?.flags ?? [],
+        note: r.annotation?.note ?? null,
+        done: r.annotation?.done ?? false,
+        remindAt: r.annotation?.remindAt ?? null,
+        remindDue: isReminderDue(r.annotation),
       }))));
     });
 
@@ -141,7 +148,10 @@ export function registerGuiCommands(program: Command): void {
         process.exit(3);
       }
       const bin = process.env.CCSM_CLAUDE_BIN ?? 'claude';
-      openSession(`${bin} --resume ${s.id} --dangerously-skip-permissions`, s.cwd, config);
+      // Same rule as the TUI: run under the session's own profile, never the ambient one
+      // (see cli/resume.ts resumeEnv — a mismatch can silently use the wrong account).
+      const profile = s.configDir ? `CLAUDE_CONFIG_DIR=${shellQuote(s.configDir)} ` : '';
+      openSession(`${profile}${bin} --resume ${s.id} --dangerously-skip-permissions`, s.cwd, config);
       console.log(JSON.stringify({ ok: true, id: s.id, cwd: s.cwd }));
     });
 
