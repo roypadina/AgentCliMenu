@@ -14,6 +14,21 @@ export interface SessionRecord {
   pid?: number;
   version?: string;
   gitBranch?: string;
+  /** User annotation (name override already applied to `name`). */
+  annotation?: Annotation;
+}
+
+/** User-attached metadata for a session, stored outside ~/.claude (see core/annotations.ts). */
+export interface Annotation {
+  sessionId: string;
+  /** Overrides every JSONL-derived title when set. */
+  name?: string;
+  note?: string;
+  flags: string[];
+  done: boolean;
+  /** ISO timestamp. */
+  remindAt?: string;
+  updatedAt?: string;
 }
 
 export interface ListOptions {

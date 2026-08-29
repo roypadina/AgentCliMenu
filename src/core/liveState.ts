@@ -81,3 +81,33 @@ export function liveSessionById(id: string): LiveSession | null {
   }
   return null;
 }
+
+function parentPid(pid: number): number | null {
+  try {
+    const out = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const n = Number(out.trim());
+    return Number.isFinite(n) && n > 1 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The session id of the Claude process we are running *inside*, or null when standalone.
+ * Walks the parent-pid chain (a hook/shell can be several levels below claude) and matches
+ * against the live session files. Lets `acm note --current …` work with no arguments.
+ */
+export function currentSessionId(startPid = process.pid): string | null {
+  const byPid = new Map(readLiveSessions().map(s => [s.pid, s.sessionId]));
+  if (byPid.size === 0) return null;
+  let pid: number | null = startPid;
+  for (let i = 0; i < 12 && pid !== null; i++) {
+    const hit = byPid.get(pid);
+    if (hit) return hit;
+    pid = parentPid(pid);
+  }
+  return null;
+}

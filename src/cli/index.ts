@@ -11,6 +11,7 @@ import { resume, ResumeError } from './resume.js';
 import { getRecap, RecapError } from '../core/recap.js';
 import { registerConfigCommands } from './config.js';
 import { registerGuiCommands } from './guiCmd.js';
+import { registerAnnotateCommands } from './annotate.js';
 
 export async function resolveId(prefix: string) {
   if (prefix.length < 4) {
@@ -114,6 +115,7 @@ export function buildProgram(): Command {
       }
     });
 
+  registerAnnotateCommands(program);
   registerConfigCommands(program);
   registerGuiCommands(program);
   return program;

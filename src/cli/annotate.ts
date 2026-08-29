@@ -1,0 +1,122 @@
+import type { Command } from 'commander';
+import {
+  parseWhen, readAllAnnotations, readAnnotation, writeAnnotation,
+  isReminderDue, type AnnotationPatch,
+} from '../core/annotations.js';
+import { currentSessionId } from '../core/liveState.js';
+import { listSessions } from '../core/sessionRepo.js';
+import type { Annotation } from '../core/types.js';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Which session to annotate: `-s <id-or-prefix>`, else the Claude session we're running inside.
+ * A full uuid skips the (slow) session scan so hook scripts stay fast.
+ */
+async function targetId(opt?: string): Promise<string> {
+  if (opt) {
+    if (UUID_RE.test(opt)) return opt;
+    const { resolveId } = await import('./index.js');
+    return (await resolveId(opt)).id;
+  }
+  const current = currentSessionId();
+  if (current) return current;
+  console.error('not running inside a Claude session — pass -s <session-id>');
+  process.exit(2);
+}
+
+function describe(a: Annotation): string {
+  const bits: string[] = [];
+  if (a.name) bits.push(`name="${a.name}"`);
+  if (a.flags.length) bits.push(`flags=${a.flags.join(',')}`);
+  if (a.done) bits.push('done');
+  if (a.remindAt) bits.push(`remind=${a.remindAt}`);
+  if (a.note) bits.push(`note="${a.note.replace(/\s+/g, ' ').slice(0, 60)}"`);
+  return bits.length ? bits.join('  ') : '(cleared)';
+}
+
+async function apply(sessionOpt: string | undefined, patch: AnnotationPatch, json?: boolean) {
+  const id = await targetId(sessionOpt);
+  const a = writeAnnotation(id, patch);
+  console.log(json ? JSON.stringify(a) : `${id.slice(0, 8)}  ${describe(a)}`);
+}
+
+export function registerAnnotateCommands(program: Command) {
+  const session = (c: Command) =>
+    c.option('-s, --session <id>', 'session id or prefix (default: the session you are in)')
+      .option('--json', 'print the resulting annotation as JSON');
+
+  session(program.command('name [words...]'))
+    .description('set a session display name (overrides the transcript title; rename as often as you like)')
+    .option('--clear', 'remove the name override')
+    .action(async (words: string[], opts) => {
+      const text = words.join(' ').trim();
+      if (!text && !opts.clear) { console.error('give a name, or --clear'); process.exit(2); }
+      await apply(opts.session, { name: opts.clear ? null : text }, opts.json);
+    });
+
+  session(program.command('note [words...]'))
+    .description('attach a free-text note to a session')
+    .option('--clear', 'remove the note')
+    .option('--append', 'append to the existing note instead of replacing it')
+    .action(async (words: string[], opts) => {
+      const text = words.join(' ').trim();
+      if (!text && !opts.clear) { console.error('give some text, or --clear'); process.exit(2); }
+      if (opts.clear) { await apply(opts.session, { note: null }, opts.json); return; }
+      const id = await targetId(opts.session);
+      const prev = opts.append ? readAnnotation(id)?.note : undefined;
+      const a = writeAnnotation(id, { note: prev ? `${prev}\n${text}` : text });
+      console.log(opts.json ? JSON.stringify(a) : `${id.slice(0, 8)}  ${describe(a)}`);
+    });
+
+  session(program.command('flag [flags...]'))
+    .description('tag a session (e.g. todo, later, bug) so it stands out in the menu')
+    .option('--remove', 'remove the given flags instead of adding them')
+    .action(async (flags: string[], opts) => {
+      if (flags.length === 0) { console.error('give at least one flag'); process.exit(2); }
+      await apply(opts.session, opts.remove ? { removeFlags: flags } : { addFlags: flags }, opts.json);
+    });
+
+  session(program.command('done'))
+    .description('mark a session finished (--undo to reopen it)')
+    .option('--undo', 'mark it not-done again')
+    .action(async (opts) => { await apply(opts.session, { done: !opts.undo }, opts.json); });
+
+  session(program.command('remind [when...]'))
+    .description('set a reminder: 2h, 30m, 3d, tomorrow, "tomorrow 9am", 17:00, or an ISO date')
+    .option('--clear', 'drop the reminder')
+    .action(async (when: string[], opts) => {
+      if (opts.clear) { await apply(opts.session, { remindAt: null }, opts.json); return; }
+      const raw = when.join(' ').trim();
+      const at = raw ? parseWhen(raw) : null;
+      if (!at) { console.error(`can't read a time out of "${raw}" — try 2h, tomorrow 9am, or an ISO date`); process.exit(2); }
+      await apply(opts.session, { remindAt: at.toISOString() }, opts.json);
+    });
+
+  program
+    .command('annotations')
+    .description('list every annotated session')
+    .option('--json')
+    .option('--due', 'only sessions whose reminder has come due')
+    .action(async (opts: { json?: boolean; due?: boolean }) => {
+      const all = [...readAllAnnotations().values()]
+        .filter(a => !opts.due || isReminderDue(a))
+        .sort((x, y) => (y.updatedAt ?? '').localeCompare(x.updatedAt ?? ''));
+      if (opts.json) { console.log(JSON.stringify(all, null, 2)); return; }
+      if (all.length === 0) { console.log(opts.due ? 'no reminders due' : 'no annotations yet'); return; }
+      // Names come from the annotation itself; fall back to the transcript title only when needed.
+      const missing = all.filter(a => !a.name);
+      const titles = new Map<string, string>();
+      if (missing.length) {
+        for (const s of await listSessions()) titles.set(s.id, s.name);
+      }
+      for (const a of all) {
+        const label = a.name ?? titles.get(a.sessionId) ?? '(unknown session)';
+        const marks = [a.done ? '✓' : '', isReminderDue(a) ? '⏰' : '', ...a.flags.map(f => `#${f}`)]
+          .filter(Boolean).join(' ');
+        console.log(`${a.sessionId.slice(0, 8)}  ${label}${marks ? '  ' + marks : ''}`);
+        if (a.note) for (const line of a.note.split('\n')) console.log(`          ${line}`);
+      }
+    });
+
+}

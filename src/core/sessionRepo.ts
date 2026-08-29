@@ -5,12 +5,14 @@ import { decodeCwd } from './decode.js';
 import { scanJsonl } from './jsonlScan.js';
 import { liveSessionMap } from './liveState.js';
 import { readGitBranch } from './git.js';
+import { readAllAnnotations } from './annotations.js';
 import type { Stats } from 'node:fs';
-import type { ListOptions, LiveSession, SessionRecord } from './types.js';
+import type { Annotation, ListOptions, LiveSession, SessionRecord } from './types.js';
 
 export async function listSessions(opts: ListOptions = {}): Promise<SessionRecord[]> {
   const out: SessionRecord[] = [];
   const live = liveSessionMap();
+  const annotations = readAllAnnotations();
   for (const root of projectsDirs()) {
     let projectDirs: string[];
     try {
@@ -35,7 +37,7 @@ export async function listSessions(opts: ListOptions = {}): Promise<SessionRecor
         const jsonlPath = join(projectPath, file);
         const st = statSync(jsonlPath);
         const scan = await scanJsonl(jsonlPath);
-        const rec = buildRecord(id, jsonlPath, st, scan, decoded, live.get(id) ?? null);
+        const rec = buildRecord(id, jsonlPath, st, scan, decoded, live.get(id) ?? null, annotations.get(id));
         if (opts.activeOnly && !rec.active) continue;
         out.push(rec);
       }
@@ -58,10 +60,11 @@ function buildRecord(
   scan: Awaited<ReturnType<typeof scanJsonl>>,
   decoded: ReturnType<typeof decodeCwd>,
   live: LiveSession | null,
+  annotation: Annotation | undefined,
 ): SessionRecord {
   return {
     id,
-    name: scan.customTitle ?? scan.aiTitle ?? scan.firstPrompt ?? '(no prompt yet)',
+    name: annotation?.name ?? scan.customTitle ?? scan.aiTitle ?? scan.firstPrompt ?? '(no prompt yet)',
     cwd: live?.cwd ?? decoded.cwd,
     cwdDecodeConfident: live ? true : decoded.confident,
     jsonlPath,
@@ -73,6 +76,7 @@ function buildRecord(
     pid: live?.pid,
     version: live?.version,
     gitBranch: readGitBranch(live?.cwd ?? decoded.cwd) ?? undefined,
+    annotation,
   };
 }
 
