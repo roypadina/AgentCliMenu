@@ -204,6 +204,10 @@ key from the branch.)
 | `⌘⌫` delete | `⌘P` details pane | `⌘R` recap | `⇧⌘C` copy resume command |
 | `⇧⌘D` hide done | `⇧⌘T` tool runs | `⇧⌘V` hidden | `⇧⌘R` reload |
 | `⇧⌘A` account | `⌘F` clear search | `⌘,` settings | `⇥` New ⇄ Resume |
+| `⌘M` mark | `⇧⌘M` clear marks | | |
+
+`⌘M` marks a session; `⌘D`, `⇧⌘H` and `⌘⌫` then act on every marked one at once, the same rule
+`space` follows in the terminal menu.
 
 ⌘ is what separates a command from typing — the search field holds focus permanently. Where macOS
 already owns a combination (`⌘H` hides the app, `⌘X`/`⌘C`/`⌘V` edit text) the shift variant is used,

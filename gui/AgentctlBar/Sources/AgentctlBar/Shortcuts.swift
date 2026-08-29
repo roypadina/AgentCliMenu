@@ -40,6 +40,8 @@ enum Shortcut {
             Row(keys: "⇧⌘R", what: "Reload from disk"),
         ]),
         Group(title: "Annotate the selected session", rows: [
+            Row(keys: "⌘M", what: "Mark it — ⌘D, ⇧⌘H and ⌘⌫ then act on every marked one"),
+            Row(keys: "⇧⌘M", what: "Clear the marks (esc does too)"),
             Row(keys: "⌘E", what: "Name it"),
             Row(keys: "⇧⌘N", what: "Write a note"),
             Row(keys: "⌘L", what: "Labels — a ticket, a repo, a topic"),
@@ -82,24 +84,32 @@ enum AnnField: Hashable { case name, labels, flags, note, remind, due }
 struct WindowReader: NSViewRepresentable {
     let onWindow: (NSWindow?) -> Void
 
-    final class Coordinator {
-        /// Last window handed up. Reporting unconditionally writes @State on every update, and
-        /// @State has no equality short-circuit — the write invalidates the body, which updates
-        /// this view, which writes again. That is a render loop bounded only by the run loop.
-        var last: NSWindow?
-        var reported = false
+    /// Reports from `viewDidMoveToWindow`, which is the one moment AppKit guarantees the answer.
+    /// Reporting from `updateNSView` cannot work: the first update runs before the view is in a
+    /// window, so it can only ever report nil, and reporting on every update instead writes
+    /// @State in a loop — @State has no equality short-circuit, so the write invalidates the body,
+    /// which updates this view, which writes again.
+    final class Reporter: NSView {
+        var onWindow: ((NSWindow?) -> Void)?
+        private weak var reported: NSWindow?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard window !== reported else { return }
+            reported = window
+            let w = window
+            DispatchQueue.main.async { [weak self] in self?.onWindow?(w) }
+        }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeNSView(context: Context) -> Reporter {
+        let v = Reporter(frame: .zero)
+        v.onWindow = onWindow
+        return v
+    }
 
-    func makeNSView(context: Context) -> NSView { NSView(frame: .zero) }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        let window = nsView.window
-        guard !context.coordinator.reported || window !== context.coordinator.last else { return }
-        context.coordinator.reported = true
-        context.coordinator.last = window
-        DispatchQueue.main.async { onWindow(window) }
+    func updateNSView(_ nsView: Reporter, context: Context) {
+        nsView.onWindow = onWindow
     }
 }
 

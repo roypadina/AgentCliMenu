@@ -89,6 +89,9 @@ struct ContentView: View {
     /// done as well as the shelf: with the done filter on, checking a session off removes its row
     /// exactly as a shelf move does.
     @State private var pendingWriteId: String?
+    /// Space-marked sessions. Marks are ids, not indices, so a re-filter cannot move them onto
+    /// the wrong rows — the failure that index-based selection had.
+    @State private var marked: Set<String> = []
     /// Transient footer message — where a row just went, mostly.
     @State private var footerNote: String?
     @State private var noteToken = 0
@@ -157,11 +160,14 @@ struct ContentView: View {
     /// A menu-bar app has no menu bar, so the one line of chrome that says the keyboard exists.
     private var footerHint: some View {
         HStack(spacing: 0) {
-            Text(footerNote ?? (tab == .new ? "⏎ open   ·   ⇧⇥ tool   ·   ⌘/ shortcuts"
-                                            : showPeek ? "⏎ resume   ·   ⌘P close   ·   ⌘/ shortcuts"
-                                                       : "⏎ resume   ·   ⌘P details   ·   ⌘/ shortcuts"))
+            Text(footerNote
+                 ?? (tab == .resume && !marked.isEmpty
+                     ? "✓ \(marked.count) marked   ·   ⌘D done · ⇧⌘H hide · ⌘⌫ delete   ·   ⇧⌘M clear"
+                     : tab == .new ? "⏎ open   ·   ⇧⇥ tool   ·   ⌘/ shortcuts"
+                     : showPeek ? "⏎ resume   ·   ⌘P close   ·   ⌘/ shortcuts"
+                                : "⏎ resume   ·   ⌘P details   ·   ⌘/ shortcuts"))
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(footerNote == nil ? .secondary : Tone.warn)
+                .foregroundColor(footerNote != nil || !marked.isEmpty ? Tone.warn : .secondary)
                 .lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 4)
             Button { showShortcuts = true } label: { Image(systemName: "questionmark.circle").font(.system(size: 11)) }
@@ -477,22 +483,27 @@ struct ContentView: View {
     private func shelfMenu(_ s: Session) -> some View {
         let shelf = s.isDeleted ? "Deleted" : s.isHidden ? "Hidden" : "Listed"
         return Menu {
-            Picker("", selection: Binding(
-                get: { shelf },
-                set: { moveToShelf(s, $0) }
-            )) {
-                Text("Listed").tag("Listed")
-                Text("Hidden").tag("Hidden")
-                Text("Deleted").tag("Deleted")
+            // Named as the acts people come looking for. The picker still shows where the session
+            // sits — but "Listed ▾" alone did not read as "this is where hide and delete live".
+            Section("Move to") {
+                Picker("", selection: Binding(
+                    get: { shelf },
+                    set: { moveToShelf(s, $0) }
+                )) {
+                    Text("Listed — show it normally").tag("Listed")
+                    Text("Hidden  ⇧⌘H").tag("Hidden")
+                    Text("Deleted  ⌘⌫").tag("Deleted")
+                }
+                .pickerStyle(.inline).labelsHidden()
             }
-            .pickerStyle(.inline).labelsHidden()
         } label: {
-            Label(shelf, systemImage: shelf == "Deleted" ? "archivebox"
-                                    : shelf == "Hidden" ? "eye.slash" : "list.bullet")
+            Label(shelf == "Listed" ? "Hide or delete" : shelf,
+                  systemImage: shelf == "Deleted" ? "archivebox"
+                             : shelf == "Hidden" ? "eye.slash" : "list.bullet")
         }
         .font(.caption2).menuStyle(.borderlessButton).fixedSize()
         .foregroundColor(shelf == "Listed" ? .secondary : Tone.warn)
-        .help("Which list this session appears in. Hidden and Deleted only change the listing — the transcript is never touched and it still resumes by id.")
+        .help("Hide or delete this session. Both only change which list it appears in — the transcript is never touched and it still resumes by id.")
     }
 
     /// The transient field behind `Custom…` (and ⌘T / ⌘U): everything the CLI parses, costing no
@@ -625,6 +636,10 @@ struct ContentView: View {
         return Button { selection = index; resumeSession(s) } label: {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
+                    if marked.contains(s.id) {
+                        Text("✓").font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundColor(Tone.ok).help("Marked — ⌘D, ⇧⌘H and ⌘⌫ act on every marked session")
+                    }
                     Image(systemName: "circle.fill").font(.system(size: 9)).foregroundColor(statusColor(s.status))
                         .help(statusText(s.status)).accessibilityLabel(statusText(s.status))
                     if !s.cwdConfident {
@@ -665,6 +680,10 @@ struct ContentView: View {
         .background(rowBackground(sel))
         .accessibilityLabel("\(s.name), \(statusText(s.status)), \(tilde(s.cwd))")
         .contextMenu {
+            Button(marked.contains(s.id) ? "Unmark" : "Mark") {
+                if marked.contains(s.id) { marked.remove(s.id) } else { marked.insert(s.id) }
+            }
+            Divider()
             Button(s.isDone ? "Not done" : "Done") {
                 Cm.annotate(id: s.id, done: !s.isDone) { applyAnnotation(s.id, $0) }
             }
@@ -879,8 +898,14 @@ struct ContentView: View {
     }
 
     private func handleShortcut(_ e: NSEvent) -> Bool {
-        // Claim a key only for the surface it was typed into.
-        guard let host = hostWindow, e.window === host else { return false }
+        // Claim a key only for the surface it was typed into. When the host window is not known
+        // yet, fall back to the key window rather than dropping the key: a nil here used to
+        // disable the entire keyboard layer silently.
+        if let host = hostWindow {
+            guard e.window === host else { return false }
+        } else {
+            guard e.window != nil, e.window === NSApp.keyWindow else { return false }
+        }
         guard !showSettings, !showNewDir else { return false }
 
         let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -919,6 +944,14 @@ struct ContentView: View {
             return true
         case ("d", true):
             hideDone.toggle(); selection = 0
+            return true
+        case ("m", false):
+            guard tab == .resume, let sel = selectedSession else { return true }
+            if marked.contains(sel.id) { marked.remove(sel.id) } else { marked.insert(sel.id) }
+            move(1)   // marking walks down the list, as it does in the terminal menu
+            return true
+        case ("m", true):
+            marked.removeAll()
             return true
         case ("t", true):
             kindFilter = kindFilter == nil ? "interactive" : kindFilter == "interactive" ? "tool" : nil
@@ -964,22 +997,49 @@ struct ContentView: View {
     private func annotateSelected(
         _ patch: (Session) -> (deleted: Bool?, hidden: Bool?, done: Bool?)
     ) -> Bool {
-        guard tab == .resume, let s = selectedSession else { return true }
+        guard tab == .resume else { return true }
         // The write is a shell round trip and the row does not move until it lands. Pressing the
         // key again in that window used to act on the NEXT session, which then inherited the
         // highlight — repeat it and you walk down the list deleting rows you never selected.
         guard pendingWriteId == nil else { return true }
-        let p = patch(s)
-        if p.hidden != nil || p.deleted != nil || p.done != nil { pendingWriteId = s.id }
-        Cm.annotate(id: s.id, done: p.done, hidden: p.hidden, deleted: p.deleted, completion: {
-            pendingWriteId = nil
-            applyAnnotation(s.id, $0)
-        }, onFailure: { pendingWriteId = nil })
-        if p.hidden == true { flashNote("Hid “\(s.name)” — see it under ≣ → Hidden.") }
-        if p.deleted == true { flashNote("Deleted “\(s.name)” — restore it from ≣ → Deleted.") }
-        if p.hidden == false || p.deleted == false { flashNote("“\(s.name)” is back in the list.") }
-        if p.done != nil { flashNote(p.done! ? "“\(s.name)” is done." : "“\(s.name)” is open again.") }
+
+        // Marked rows win over the highlighted one, exactly as in the terminal menu. The patch is
+        // computed from the highlighted session so a batch is uniform — otherwise a "toggle" over
+        // a mixed selection would leave it just as mixed.
+        let targets = marked.isEmpty
+            ? [selectedSession].compactMap { $0 }
+            : resumeItems.filter { marked.contains($0.id) }
+        guard let head = selectedSession ?? targets.first else { return true }
+        let p = patch(head)
+
+        if p.hidden != nil || p.deleted != nil || p.done != nil { pendingWriteId = head.id }
+        var left = targets.count
+        for t in targets {
+            Cm.annotate(id: t.id, done: p.done, hidden: p.hidden, deleted: p.deleted, completion: { a in
+                applyAnnotation(t.id, a)
+                left -= 1
+                if left <= 0 { pendingWriteId = nil }
+            }, onFailure: {
+                left -= 1
+                if left <= 0 { pendingWriteId = nil }
+            })
+        }
+        marked.removeAll()
+        flashNote(shelfNote(p, targets: targets, head: head))
         return true
+    }
+
+    /// One line saying what just happened, naming the session when it was one and counting when
+    /// it was several.
+    private func shelfNote(
+        _ p: (deleted: Bool?, hidden: Bool?, done: Bool?), targets: [Session], head: Session
+    ) -> String {
+        let what = targets.count == 1 ? "“\(head.name)”" : "\(targets.count) sessions"
+        if p.deleted == true { return "Deleted \(what) — restore from ≣ → Deleted." }
+        if p.hidden == true { return "Hid \(what) — see it under ≣ → Hidden." }
+        if p.deleted == false || p.hidden == false { return "\(what) back in the list." }
+        if p.done == true { return "\(what) done." }
+        return "\(what) open again."
     }
 
     private func cycleProfileOverride() {
@@ -1012,6 +1072,7 @@ struct ContentView: View {
         Cm.resume(id: s.id, profileHome: profileOverride?.home); onAction()
     }
     private func cancel() {
+        if !marked.isEmpty { marked.removeAll(); return }
         if customWhen != nil { customWhen = nil; annFocus = nil; searchFocusToken += 1; return }
         if annFocus != nil { annFocus = nil; annExpanded = false; searchFocusToken += 1; return }
         if confirmResumeId != nil { confirmResumeId = nil; return }
