@@ -336,26 +336,42 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   });
 
   // Table column widths (cwd flex-fills the rest). ink truncates each cell to its Box width.
-  const tableInner = Math.max(48, cols - 4);
-  const wBranch = 12;
+  const tableInner = Math.max(20, cols - 4);
+  // Below ~70 columns the cwd-warning and annotation-badge cells cost more than they are worth:
+  // keeping them makes the fixed columns wider than the table, and ink wraps every single row.
+  const showExtras = cols >= 70;
+  const wBranch = cols >= 90 ? 12 : 8;
   const wUsed = 14; // "Jun 09 10:43"
-  const wName = Math.max(16, Math.min(44, Math.floor((tableInner - 4 - 2 - 4 - wBranch - wUsed) * 0.5)));
+  const fixedCols = 2 + 2 + (showExtras ? 6 : 0) + 1 + wBranch + 1 + wUsed + 1 + 2;
+  const wName = Math.max(10, Math.min(44, Math.floor((tableInner - fixedCols) * 0.6)));
   // The list is the ONLY elastic block on screen, so its height is whatever the fixed chrome
   // and the (content-sized) details pane leave over. Guessing a constant here is what pushed
   // the header off-screen whenever a note, a recap or a prompt appeared.
   const sel = filtered[clamped];
   const selRecap = sel ? recaps[sel.id] : undefined;
-  const recapBodyLines = selRecap?.text
-    ? Math.min(6, selRecap.text.split('\n').filter(l => l.trim()).length)
-    : 1;
-  const noteLines = sel?.annotation?.note ? Math.min(3, sel.annotation.note.split('\n').length) : 0;
-  const detailsHeight = sel
-    ? 2 + 4 + (sel.annotation ? 1 : 0) + noteLines + 1 + recapBodyLines +
-      (confirmResumeId === sel.id ? 1 : 0)
-    : 0;
-  const CHROME = 10; // tab bar 2 + header 2 + gap 1 + table border/header 3 + footer 2
+  const CHROME = 10;      // tab bar 2 + header 2 + gap 1 + table border/header 3 + footer 2
+  const MIN_LIST = 3;     // the list never shrinks below this — the details pane yields first
   const promptHeight = mode === 'filter' ? 2 : mode === 'annotate' ? (promptError ? 3 : 2) : 0;
-  const rowsPerView = Math.max(3, rows - CHROME - detailsHeight - promptHeight);
+
+  // The details pane is content-sized but must never grow past what the terminal has left, or it
+  // pushes the header off screen. Size its variable parts against the leftover budget, and drop
+  // the pane entirely on a terminal too short for even its fixed rows.
+  const detailsFixed = sel
+    ? 2 + 4 + (sel.annotation ? 1 : 0) + (confirmResumeId === sel.id ? 1 : 0) + 1
+    : 0;
+  const detailsBudget = rows - CHROME - promptHeight - MIN_LIST;
+  const showDetails = !!sel && detailsBudget >= detailsFixed;
+  const spare = showDetails ? Math.max(0, detailsBudget - detailsFixed) : 0;
+  const noteLines = Math.min(
+    sel?.annotation?.note ? Math.min(3, sel.annotation.note.split('\n').length) : 0,
+    spare,
+  );
+  const recapBodyLines = Math.min(
+    selRecap?.text ? Math.min(6, selRecap.text.split('\n').filter(l => l.trim()).length) : 1,
+    spare - noteLines,
+  );
+  const detailsHeight = showDetails ? detailsFixed + noteLines + recapBodyLines : 0;
+  const rowsPerView = Math.max(MIN_LIST, rows - CHROME - promptHeight - detailsHeight);
   const { start, end: viewEnd } = windowFor(filtered.length, clamped, rowsPerView);
   const view = filtered.slice(start, viewEnd);
   const listBar = scrollbar(filtered.length, start, view.length);
@@ -396,7 +412,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         {mode !== 'search-results' ? (
           <>
             <Text dimColor>  ·  </Text>
-            <Text color="gray">{clamped + 1}/{filtered.length}</Text>
+            <Text color="gray">{filtered.length === 0 ? 0 : clamped + 1}/{filtered.length}</Text>
           </>
         ) : null}
       </Box>
@@ -451,19 +467,22 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
       {mode === 'list' || mode === 'filter' || mode === 'annotate' ? (
         <Box marginTop={1} flexDirection="column">
           <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
-            <TableHeader wName={wName} wBranch={wBranch} wUsed={wUsed} />
+            <TableHeader wName={wName} wBranch={wBranch} wUsed={wUsed} extras={showExtras} />
             {view.map((r, i) => (
-              <Row key={r.id} r={r} selected={start + i === clamped} wName={wName} wBranch={wBranch} wUsed={wUsed} bar={listBar[i]} />
+              <Row key={r.id} r={r} selected={start + i === clamped} wName={wName} wBranch={wBranch} wUsed={wUsed} bar={listBar[i]} extras={showExtras} />
             ))}
             {filtered.length === 0 ? (
               <Text dimColor>{records.length === 0 ? '(no sessions yet)' : `(no matches for "${filter}")`}</Text>
             ) : null}
           </Box>
-          {filtered[clamped] ? (
+          {showDetails && sel ? (
             <DetailsPane
-              s={filtered[clamped]}
-              recap={recaps[filtered[clamped].id]}
-              confirming={confirmResumeId === filtered[clamped].id}
+              s={sel}
+              recap={selRecap}
+              confirming={confirmResumeId === sel.id}
+              maxNoteLines={noteLines}
+              maxRecapLines={recapBodyLines}
+              narrow={cols < 70}
             />
           ) : null}
         </Box>
@@ -664,8 +683,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
               <Text dimColor>↑/↓ </Text><Text color="white">move</Text>
               <Text dimColor> · ⏎ </Text><Text color="white">resume</Text>
               <Text dimColor> · / </Text><Text color="white">filter</Text>
-              <Text dimColor> · s </Text><Text color="white">search</Text>
-              {/* A narrow terminal shrinks these cells into unreadable stubs — `?` has the full map. */}
+              {/* Each hint that does not fit wraps the footer onto a second line and steals a list
+                  row, so drop them by width instead. `?` always has the full keymap. */}
+              {cols >= 70 ? (<><Text dimColor> · s </Text><Text color="white">search</Text></>) : null}
               {cols >= 100 ? (
                 <>
                   <Text dimColor> · r </Text><Text color="white">recap</Text>
@@ -683,13 +703,15 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   );
 }
 
-function TableHeader({ wName, wBranch, wUsed }: { wName: number; wBranch: number; wUsed: number }) {
+function TableHeader({ wName, wBranch, wUsed, extras }: {
+  wName: number; wBranch: number; wUsed: number; extras: boolean;
+}) {
   return (
     <Box>
       <Box width={4} flexShrink={0}><Text dimColor bold>ST</Text></Box>
-      <Box width={2} flexShrink={0}><Text dimColor bold> </Text></Box>
+      {extras ? <Box width={2} flexShrink={0}><Text dimColor bold> </Text></Box> : null}
       <Box width={wName} marginRight={1} flexShrink={0}><Text dimColor bold>NAME</Text></Box>
-      <Box width={4} flexShrink={0}><Text dimColor bold> </Text></Box>
+      {extras ? <Box width={4} flexShrink={0}><Text dimColor bold> </Text></Box> : null}
       <Box width={wBranch} marginRight={1} flexShrink={0}><Text dimColor bold>BRANCH</Text></Box>
       <Box width={wUsed} marginRight={1} flexShrink={0}><Text dimColor bold>LAST USED</Text></Box>
       <Box flexGrow={1} minWidth={0}><Text dimColor bold>CWD</Text></Box>
@@ -710,20 +732,23 @@ function badgeMarks(r: SessionRecord): Array<{ ch: string; color: string }> {
   return out;
 }
 
-function Row({ r, selected, wName, wBranch, wUsed, bar }: {
-  r: SessionRecord; selected: boolean; wName: number; wBranch: number; wUsed: number; bar?: string;
+function Row({ r, selected, wName, wBranch, wUsed, bar, extras }: {
+  r: SessionRecord; selected: boolean; wName: number; wBranch: number; wUsed: number;
+  bar?: string; extras: boolean;
 }) {
   return (
     <Box>
       <Box width={2} flexShrink={0}><Text bold color={selected ? 'yellow' : 'gray'}>{selected ? '▶' : ' '}</Text></Box>
       <Box width={2} flexShrink={0}><Text color={STATUS_COLOR[r.status]} bold>{STATUS_DOT[r.status]}</Text></Box>
-      <Box width={2} flexShrink={0}><Text bold color="yellow">{r.cwdDecodeConfident ? ' ' : '!'}</Text></Box>
+      {extras ? <Box width={2} flexShrink={0}><Text bold color="yellow">{r.cwdDecodeConfident ? ' ' : '!'}</Text></Box> : null}
       <Box width={wName} marginRight={1} flexShrink={0}>
         <Text bold={selected} color={selected ? 'cyan' : 'white'} wrap="truncate-end">{r.name}</Text>
       </Box>
-      <Box width={4} flexShrink={0}>
-        {badgeMarks(r).map((m, i) => <Text key={i} color={m.color}>{m.ch}</Text>)}
-      </Box>
+      {extras ? (
+        <Box width={4} flexShrink={0}>
+          {badgeMarks(r).map((m, i) => <Text key={i} color={m.color}>{m.ch}</Text>)}
+        </Box>
+      ) : null}
       <Box width={wBranch} marginRight={1} flexShrink={0}><Text color="magenta" wrap="truncate-end">{r.gitBranch ?? '–'}</Text></Box>
       <Box width={wUsed} marginRight={1} flexShrink={0}><Text color="cyan" wrap="truncate-end">{formatDate(r.lastUpdatedAt)}</Text></Box>
       <Box flexGrow={1} minWidth={0}><Text color="green" wrap="truncate-middle">{tildify(r.cwd)}</Text></Box>
@@ -733,8 +758,16 @@ function Row({ r, selected, wName, wBranch, wUsed, bar }: {
 }
 
 /** Always-visible "more info" for the highlighted row (Roy's ask): full metadata + last-used + recap. */
-function DetailsPane({ s, recap, confirming }: { s: SessionRecord; recap?: RecapState; confirming: boolean }) {
-  const recapLines = recap?.text ? recap.text.split('\n').filter((l) => l.trim()).slice(0, 6) : null;
+function DetailsPane({ s, recap, confirming, maxNoteLines, maxRecapLines, narrow }: {
+  s: SessionRecord; recap?: RecapState; confirming: boolean;
+  /** Line budgets computed by the caller — the pane must not render more than the screen has. */
+  maxNoteLines: number; maxRecapLines: number;
+  /** Too narrow for both timestamps on one row; keep the one that matters. */
+  narrow: boolean;
+}) {
+  const recapLines = recap?.text
+    ? recap.text.split('\n').filter((l) => l.trim()).slice(0, maxRecapLines)
+    : null;
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
       <Box>
@@ -742,15 +775,22 @@ function DetailsPane({ s, recap, confirming }: { s: SessionRecord; recap?: Recap
         <Text bold color="white" wrap="truncate-end">{s.name}</Text>
       </Box>
       <Box>
-        <Text color="magenta">{s.id}</Text>
+        {/* The full uuid plus status plus branch overflows a narrow pane and wraps onto a second
+            line, which the height budget has not paid for. Shorten instead of wrapping. */}
+        <Text color="magenta">{narrow ? s.id.slice(0, 8) : s.id}</Text>
         <Text dimColor>   </Text>
         <Text color={STATUS_COLOR[s.status]}>{STATUS_DOT[s.status]} {s.status}</Text>
-        {s.gitBranch ? (<><Text dimColor>   ⎇ </Text><Text color="magenta">{s.gitBranch}</Text></>) : null}
-        {!s.cwdDecodeConfident ? <Text color="yellow">   ⚠ cwd uncertain</Text> : null}
+        {s.gitBranch && !narrow ? (<><Text dimColor>   ⎇ </Text><Text color="magenta">{s.gitBranch}</Text></>) : null}
+        {!s.cwdDecodeConfident ? <Text color="yellow">{narrow ? '  ⚠' : '   ⚠ cwd uncertain'}</Text> : null}
       </Box>
       <Box>
-        <Text dimColor>started </Text><Text color="blue">{formatDate(s.startedAt)}</Text>
-        <Text dimColor>   ·   last used </Text><Text color="cyan">{formatDate(s.lastUpdatedAt)}</Text>
+        {narrow ? null : (
+          <>
+            <Text dimColor>started </Text><Text color="blue">{formatDate(s.startedAt)}</Text>
+            <Text dimColor>   ·   </Text>
+          </>
+        )}
+        <Text dimColor>last used </Text><Text color="cyan">{formatDate(s.lastUpdatedAt)}</Text>
         <Text dimColor> (</Text><Text color="yellow">{timeAgo(s.lastUpdatedAt)}</Text><Text dimColor> ago)</Text>
       </Box>
       <Box><Text color="green" wrap="truncate-middle">{tildify(s.cwd)}</Text></Box>
@@ -765,14 +805,14 @@ function DetailsPane({ s, recap, confirming }: { s: SessionRecord; recap?: Recap
           ) : null}
         </Box>
       ) : null}
-      {s.annotation?.note
-        ? s.annotation.note.split('\n').slice(0, 3).map((l, i) => (
+      {s.annotation?.note && maxNoteLines > 0
+        ? s.annotation.note.split('\n').slice(0, maxNoteLines).map((l, i) => (
             <Text key={i} color="cyan" wrap="truncate-end">✎ {l}</Text>
           ))
         : null}
       <Box flexDirection="column">
         <Text bold color={recapLines ? 'green' : 'gray'}>recap</Text>
-        {recap?.loading ? (
+        {maxRecapLines <= 0 ? null : recap?.loading ? (
           <Text color="yellow">generating… (claude -p · haiku)</Text>
         ) : recap?.error ? (
           <Text color="red" wrap="truncate-end">{recap.error}</Text>

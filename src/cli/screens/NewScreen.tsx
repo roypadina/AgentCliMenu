@@ -102,6 +102,8 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
     ? (() => { for (let i = winStart - 1; i >= 0; i--) { const r = rows[i]; if (r.kind === 'header') return r; } return null; })()
     : null;
   const bar = scrollbar(rows.length, winStart, view.length);
+  // Page by the DIRS on screen — maxVisible counts group headers too, which over-pages.
+  const pageBy = Math.max(1, view.filter((r) => r.kind === 'dir').length);
 
   // Uncommitted-change count — highlighted row only, debounced, cached per path.
   // Spawning git per row on the scan path is banned (CLAUDE.md); this is the one exception.
@@ -167,8 +169,8 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
       setCursor(Math.max(0, Math.min(dirs.length - 1, clamped + (moved || (key.downArrow ? 1 : -1)))));
       return;
     }
-    if (key.pageUp) { setCursor(Math.max(0, clamped - maxVisible)); return; }
-    if (key.pageDown) { setCursor(Math.min(dirs.length - 1, clamped + maxVisible)); return; }
+    if (key.pageUp) { setCursor(Math.max(0, clamped - pageBy)); return; }
+    if (key.pageDown) { setCursor(Math.min(dirs.length - 1, clamped + pageBy)); return; }
     if (key.backspace || key.delete) { setQuery((q) => q.slice(0, -1)); return; }
 
     const k = key.ctrl && input ? 'ctrl-' + input.toLowerCase() : '';

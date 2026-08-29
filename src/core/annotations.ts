@@ -100,6 +100,10 @@ function isEmpty(a: Annotation): boolean {
 /**
  * Read-modify-write one session's annotation. Returns the merged result.
  * Writes via a temp file + rename so a reader never sees a half-written file.
+ *
+ * ponytail: read-modify-write, not a transaction — two writers patching the SAME session in the
+ * same instant can drop one patch. One file per session makes that vanishingly rare; add a lock
+ * file only if simultaneous hook + TUI edits ever actually collide.
  */
 export function writeAnnotation(id: string, patch: AnnotationPatch, dir = annotationsDir()): Annotation {
   if (!isValidSessionId(id)) throw new Error(`invalid session id: ${id}`);
@@ -177,6 +181,10 @@ export function parseWhen(input: string, now = new Date()): Date | null {
 
   const clock = applyClock(now, s);
   if (clock) return clock.getTime() > now.getTime() ? clock : applyClock(tomorrow, s);
+
+  // A bare number is a forgotten unit, not a year: Date.parse('45') yields 2045 (silently never
+  // due) and '90' yields 1990 (permanently overdue). Reject it and let the caller ask again.
+  if (/^\d+$/.test(s)) return null;
 
   const parsed = Date.parse(input);
   return Number.isFinite(parsed) ? new Date(parsed) : null;

@@ -101,7 +101,9 @@ function parentPid(pid: number): number | null {
  * against the live session files. Lets `acm note --current …` work with no arguments.
  */
 export function currentSessionId(startPid = process.pid): string | null {
-  const byPid = new Map(readLiveSessions().map(s => [s.pid, s.sessionId]));
+  // Same liveness filter as liveSessionById — a stale pid file whose pid got recycled by an
+  // ancestor shell would otherwise make `acm note` annotate a long-dead session.
+  const byPid = new Map(readLiveSessions().filter(isLiveClaude).map(s => [s.pid, s.sessionId]));
   if (byPid.size === 0) return null;
   let pid: number | null = startPid;
   for (let i = 0; i < 12 && pid !== null; i++) {

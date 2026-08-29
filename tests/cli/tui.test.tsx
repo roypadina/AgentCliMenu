@@ -106,3 +106,18 @@ describe('filter box owns plain letters', () => {
     expect(lastFrame()).toContain('2/80');
   });
 });
+
+describe('short terminals', () => {
+  const many = Array.from({ length: 40 }, (_, i) =>
+    rec(`${String(i).padStart(8, '0')}-0000-0000-0000-000000000000`, `session-${i}`));
+
+  /** ink's fake stdout reports no size, so the code falls back to 30 rows / 80 cols. */
+  it('keeps the whole render inside the terminal even with a note and a recap on screen', () => {
+    const annotated = many.map((r, i) => i === 0
+      ? { ...r, annotation: { sessionId: r.id, flags: ['todo'], done: false, note: 'a\nb\nc' } }
+      : r);
+    const { lastFrame } = render(<App initial={annotated} />);
+    expect(lastFrame()!.split('\n').length).toBeLessThanOrEqual(30);
+    expect(lastFrame()).toContain('resume');   // header survived
+  });
+});

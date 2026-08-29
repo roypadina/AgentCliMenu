@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   readAnnotation, writeAnnotation, readAllAnnotations, parseAnnotation,
-  isValidSessionId, normalizeFlag, isReminderDue,
+  isValidSessionId, normalizeFlag, isReminderDue, parseWhen,
 } from '../../src/core/annotations.js';
 
 let dir: string;
@@ -94,5 +94,28 @@ describe('isReminderDue', () => {
     expect(isReminderDue({ sessionId: ID, flags: [], done: true, remindAt: '2020-01-01T00:00:00Z' }, now)).toBe(false);
     expect(isReminderDue({ sessionId: ID, flags: [], done: false, remindAt: 'soonish' }, now)).toBe(false);
     expect(isReminderDue(undefined, now)).toBe(false);
+  });
+});
+
+describe('parseWhen', () => {
+  const now = new Date('2026-08-29T15:00:00');
+
+  it('refuses a bare number — a forgotten unit must not become a year', () => {
+    for (const s of ['45', '90', '30', '2045']) expect(parseWhen(s, now)).toBeNull();
+  });
+
+  it('still takes relative, clock, tomorrow and ISO forms', () => {
+    expect(parseWhen('2h', now)!.getTime()).toBe(now.getTime() + 7_200_000);
+    expect(parseWhen('45m', now)!.getTime()).toBe(now.getTime() + 2_700_000);
+    expect(parseWhen('17:00', now)!.getHours()).toBe(17);
+    expect(parseWhen('9am', now)!.getDate()).toBe(30);      // already past today → tomorrow
+    expect(parseWhen('tomorrow', now)!.getHours()).toBe(9);
+    expect(parseWhen('2026-12-01T08:00:00Z', now)!.getUTCMonth()).toBe(11);
+  });
+
+  it('returns null for nonsense', () => {
+    expect(parseWhen('whenever', now)).toBeNull();
+    expect(parseWhen('tomorrow 99', now)).toBeNull();
+    expect(parseWhen('', now)).toBeNull();
   });
 });
