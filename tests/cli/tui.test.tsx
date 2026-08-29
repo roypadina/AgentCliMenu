@@ -50,3 +50,44 @@ describe('App', () => {
     expect(lastFrame()).toContain('filter:');
   });
 });
+
+describe('long lists', () => {
+  const many = Array.from({ length: 80 }, (_, i) =>
+    rec(`${String(i).padStart(8, '0')}-0000-0000-0000-000000000000`, `session-${i}`));
+
+  /** ink writes to a fake stdout with no real rows; the code falls back to 30. */
+  const TERM_ROWS = 30;
+
+  it('never renders more rows than the terminal can show', () => {
+    const { lastFrame } = render(<App initial={many} />);
+    expect(lastFrame()!.split('\n').length).toBeLessThanOrEqual(TERM_ROWS);
+  });
+
+  it('keeps the highlighted row inside the window while paging down', async () => {
+    const { stdin, lastFrame } = render(<App initial={many} />);
+    await sendKey(stdin, 'G');                       // jump to the last session
+    expect(lastFrame()).toContain('session-79');
+    expect(lastFrame()).toContain('▶');
+    expect(lastFrame()!.split('\n').length).toBeLessThanOrEqual(TERM_ROWS);
+    await sendKey(stdin, 'g');                       // back to the first
+    expect(lastFrame()).toContain('session-0');
+  });
+
+  it('shows a scroll position counter and a scrollbar thumb', () => {
+    const { lastFrame } = render(<App initial={many} />);
+    expect(lastFrame()).toContain('1/80');
+    expect(lastFrame()).toContain('█');
+  });
+
+  it('one arrow press moves one row after the filter shrinks the list', async () => {
+    const { stdin, lastFrame } = render(<App initial={many} />);
+    await sendKey(stdin, 'G');                       // cursor at 79
+    await sendKey(stdin, '/');                       // filter mode
+    await sendKey(stdin, 'session-1');               // matches session-1, -10..-19
+    await sendKey(stdin, '\r');                      // back to list mode
+    // Without the cursor reset the selection would sit on the last match and ↓ would do nothing.
+    expect(lastFrame()).toContain('1/');
+    await sendKey(stdin, '\x1B[B');
+    expect(lastFrame()).toContain('2/');
+  });
+});

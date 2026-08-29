@@ -9,6 +9,8 @@ import { searchSessions, type SearchMatch } from '../core/search.js';
 import { formatDate, timeAgo } from './format.js';
 import { fuzzyRank } from '../core/fuzzy.js';
 import { getRecap, readCachedRecap, spawnRun } from '../core/recap.js';
+import { windowFor, scrollbar } from './viewport.js';
+import { useKeyChunk, upCount, downCount } from './useKeyChunk.js';
 import type { SessionRecord, SessionStatus, TranscriptTurn } from '../core/types.js';
 
 interface RecapState { text?: string; loading?: boolean; error?: string }
@@ -68,6 +70,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     ? fuzzyRank(filter, records, r => `${r.name}  ${tildify(r.cwd)}  ${r.id}`).map(x => x.item)
     : records;
   const clamped = Math.min(cursor, Math.max(0, filtered.length - 1));
+  // Re-filtering shrinks the list under the cursor. Snap back to the top, otherwise the stale
+  // index leaves the selection pinned to the last row and ↑ looks dead until it counts down.
+  useEffect(() => { setCursor(0); }, [filter]);
   const [confirmResumeId, setConfirmResumeId] = useState<string | null>(null);
   const activeCount = records.filter(r => r.active).length;
 
@@ -129,10 +134,17 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
 
   useEffect(() => () => { searchAbortRef.current?.abort(); }, []);
 
+  const keyChunk = useKeyChunk();
+
   useInput((input, key) => {
+    // One stdin chunk can carry many presses (held-down arrow); ink only parses the first.
+    const moved = downCount(keyChunk.current) - upCount(keyChunk.current);
     if (mode === 'help') { setMode('list'); return; } // any key closes
     if (mode === 'filter') {
-      if (key.return || key.escape) setMode('list');
+      if (key.return || key.escape) { setMode('list'); return; }
+      // fzf-style: arrow through the narrowed list without leaving the filter box
+      // (ink-text-input only claims ←/→, so ↑/↓ are ours).
+      if (moved !== 0) setCursor(Math.max(0, Math.min(filtered.length - 1, clamped + moved)));
       return;
     }
     if (mode === 'search-input') {
@@ -146,12 +158,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         setPeekOffset(0);
         return;
       }
-      if (key.upArrow || input === 'k') {
-        setPeekOffset(o => Math.min(maxPeekOffset, o + 1));
-        return;
-      }
-      if (key.downArrow || input === 'j') {
-        setPeekOffset(o => Math.max(0, o - 1));
+      if (moved !== 0) {
+        setPeekOffset(o => Math.max(0, Math.min(maxPeekOffset, o - moved)));
         return;
       }
       if (key.pageUp) { setPeekOffset(o => Math.min(maxPeekOffset, o + peekWindow)); return; }
@@ -173,8 +181,11 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         setMode('search-input');
         return;
       }
-      if (key.upArrow || input === 'k') setSearchCursor(c => Math.max(0, c - 1));
-      if (key.downArrow || input === 'j') setSearchCursor(c => Math.min(searchResults.length - 1, c + 1));
+      if (moved !== 0) setSearchCursor(c => Math.max(0, Math.min(searchResults.length - 1, c + moved)));
+      if (key.pageUp) setSearchCursor(c => Math.max(0, c - searchPerView));
+      if (key.pageDown) setSearchCursor(c => Math.min(searchResults.length - 1, c + searchPerView));
+      if (input === 'g') setSearchCursor(0);
+      if (input === 'G') setSearchCursor(Math.max(0, searchResults.length - 1));
       if (input === 'p') {
         const hit = searchResults[searchCursor];
         if (hit) {
@@ -202,8 +213,14 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
       back();
       return;
     }
-    if (key.upArrow || input === 'k') { setCursor(c => Math.max(0, c - 1)); setConfirmResumeId(null); }
-    if (key.downArrow || input === 'j') { setCursor(c => Math.min(filtered.length - 1, c + 1)); setConfirmResumeId(null); }
+    if (moved !== 0) {
+      setCursor(Math.max(0, Math.min(filtered.length - 1, clamped + moved)));
+      setConfirmResumeId(null);
+    }
+    if (key.pageUp) { setCursor(Math.max(0, clamped - rowsPerView)); setConfirmResumeId(null); }
+    if (key.pageDown) { setCursor(Math.min(filtered.length - 1, clamped + rowsPerView)); setConfirmResumeId(null); }
+    if (input === 'g') { setCursor(0); setConfirmResumeId(null); }
+    if (input === 'G') { setCursor(Math.max(0, filtered.length - 1)); setConfirmResumeId(null); }
     if (input === '/') setMode('filter');
     if (input === 's') {
       setSearchInput(searchQuery);
@@ -239,14 +256,18 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const tableInner = Math.max(48, cols - 4);
   const wBranch = 12;
   const wUsed = 14; // "Jun 09 10:43"
-  const wName = Math.max(16, Math.min(44, Math.floor((tableInner - 4 - wBranch - wUsed) * 0.5)));
-  // 1-line rows now; leave room for the table border + the on-highlight details pane + chrome.
-  const rowsPerView = Math.max(3, rows - 18);
-  const start = Math.max(
-    0,
-    Math.min(Math.max(0, filtered.length - rowsPerView), clamped - Math.floor(rowsPerView / 2)),
-  );
-  const view = filtered.slice(start, start + rowsPerView);
+  const wName = Math.max(16, Math.min(44, Math.floor((tableInner - 4 - 2 - wBranch - wUsed) * 0.5)));
+  // 1-line rows; leave room for the table border + the on-highlight details pane + chrome.
+  // The filter prompt is two extra lines — not subtracting them overflows the terminal, which
+  // scrolls the header off-screen and hides where you are in the list.
+  const rowsPerView = Math.max(3, rows - 18 - (mode === 'filter' ? 2 : 0));
+  const { start, end: viewEnd } = windowFor(filtered.length, clamped, rowsPerView);
+  const view = filtered.slice(start, viewEnd);
+  const listBar = scrollbar(filtered.length, start, view.length);
+  // Search hits are two lines each and used to render ALL at once, overflowing any terminal.
+  const searchPerView = Math.max(2, Math.floor((rows - 10) / 2));
+  const { start: searchStart, end: searchEnd } = windowFor(searchResults.length, searchCursor, searchPerView);
+  const searchView = searchResults.slice(searchStart, searchEnd);
 
   const renderHeader = () => (
     <Box flexDirection="column">
@@ -308,12 +329,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         <Box marginTop={1} flexDirection="column">
           <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
             <TableHeader wName={wName} wBranch={wBranch} wUsed={wUsed} />
-            {start > 0 ? <Text dimColor>  ▲ {start} more above</Text> : null}
             {view.map((r, i) => (
-              <Row key={r.id} r={r} selected={start + i === clamped} wName={wName} wBranch={wBranch} wUsed={wUsed} />
+              <Row key={r.id} r={r} selected={start + i === clamped} wName={wName} wBranch={wBranch} wUsed={wUsed} bar={listBar[i]} />
             ))}
-            {start + rowsPerView < filtered.length
-              ? <Text dimColor>  ▼ {filtered.length - (start + rowsPerView)} more below</Text> : null}
             {filtered.length === 0 ? (
               <Text dimColor>{records.length === 0 ? '(no sessions yet)' : `(no matches for "${filter}")`}</Text>
             ) : null}
@@ -348,6 +366,12 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
                 <Text color="green">done</Text>
               </>
             )}
+            {searchResults.length > 0 ? (
+              <>
+                <Text dimColor>   </Text>
+                <Text color="gray">{searchCursor + 1}/{searchResults.length}</Text>
+              </>
+            ) : null}
             <Text dimColor>   s/.  new search   ·  esc back</Text>
           </Box>
           {searchResults.length === 0 ? (
@@ -356,7 +380,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
             </Box>
           ) : (
             <Box marginTop={1} flexDirection="column">
-              {searchResults.map((m, i) => {
+              {searchView.map((m, vi) => {
+                const i = searchStart + vi;
                 const isSel = i === searchCursor;
                 const marker = isSel ? '▶' : ' ';
                 return (
@@ -390,6 +415,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
           <Text bold color="cyan">keys — Resume</Text>
           <HelpRow k="↑/↓  j/k" v="move selection" />
+          <HelpRow k="pgup/pgdn" v="page through the list" />
+          <HelpRow k="g / G" v="jump to first / last" />
           <HelpRow k="enter" v="resume the selected session" />
           <HelpRow k="r" v="recap the session (claude -p · haiku, cached)" />
           <HelpRow k="p" v="peek transcript (↑/↓ · g/G · pgup/pgdn to scroll)" />
@@ -527,29 +554,32 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
 function TableHeader({ wName, wBranch, wUsed }: { wName: number; wBranch: number; wUsed: number }) {
   return (
     <Box>
-      <Box width={4}><Text dimColor bold>ST</Text></Box>
-      <Box width={wName} marginRight={1}><Text dimColor bold>NAME</Text></Box>
-      <Box width={wBranch} marginRight={1}><Text dimColor bold>BRANCH</Text></Box>
-      <Box width={wUsed} marginRight={1}><Text dimColor bold>LAST USED</Text></Box>
-      <Box flexGrow={1}><Text dimColor bold>CWD</Text></Box>
+      <Box width={4} flexShrink={0}><Text dimColor bold>ST</Text></Box>
+      <Box width={2} flexShrink={0}><Text dimColor bold> </Text></Box>
+      <Box width={wName} marginRight={1} flexShrink={0}><Text dimColor bold>NAME</Text></Box>
+      <Box width={wBranch} marginRight={1} flexShrink={0}><Text dimColor bold>BRANCH</Text></Box>
+      <Box width={wUsed} marginRight={1} flexShrink={0}><Text dimColor bold>LAST USED</Text></Box>
+      <Box flexGrow={1} minWidth={0}><Text dimColor bold>CWD</Text></Box>
+      <Box width={1} flexShrink={0}><Text dimColor> </Text></Box>
     </Box>
   );
 }
 
-function Row({ r, selected, wName, wBranch, wUsed }: {
-  r: SessionRecord; selected: boolean; wName: number; wBranch: number; wUsed: number;
+function Row({ r, selected, wName, wBranch, wUsed, bar }: {
+  r: SessionRecord; selected: boolean; wName: number; wBranch: number; wUsed: number; bar?: string;
 }) {
   return (
     <Box>
-      <Box width={2}><Text bold color={selected ? 'yellow' : 'gray'}>{selected ? '▶' : ' '}</Text></Box>
-      <Box width={2}><Text color={STATUS_COLOR[r.status]} bold>{STATUS_DOT[r.status]}</Text></Box>
-      <Box width={wName} marginRight={1}>
-        {!r.cwdDecodeConfident ? <Text color="yellow">⚠ </Text> : null}
+      <Box width={2} flexShrink={0}><Text bold color={selected ? 'yellow' : 'gray'}>{selected ? '▶' : ' '}</Text></Box>
+      <Box width={2} flexShrink={0}><Text color={STATUS_COLOR[r.status]} bold>{STATUS_DOT[r.status]}</Text></Box>
+      <Box width={2} flexShrink={0}><Text bold color="yellow">{r.cwdDecodeConfident ? ' ' : '!'}</Text></Box>
+      <Box width={wName} marginRight={1} flexShrink={0}>
         <Text bold={selected} color={selected ? 'cyan' : 'white'} wrap="truncate-end">{r.name}</Text>
       </Box>
-      <Box width={wBranch} marginRight={1}><Text color="magenta" wrap="truncate-end">{r.gitBranch ?? '–'}</Text></Box>
-      <Box width={wUsed} marginRight={1}><Text color="cyan" wrap="truncate-end">{formatDate(r.lastUpdatedAt)}</Text></Box>
-      <Box flexGrow={1}><Text color="green" wrap="truncate-middle">{tildify(r.cwd)}</Text></Box>
+      <Box width={wBranch} marginRight={1} flexShrink={0}><Text color="magenta" wrap="truncate-end">{r.gitBranch ?? '–'}</Text></Box>
+      <Box width={wUsed} marginRight={1} flexShrink={0}><Text color="cyan" wrap="truncate-end">{formatDate(r.lastUpdatedAt)}</Text></Box>
+      <Box flexGrow={1} minWidth={0}><Text color="green" wrap="truncate-middle">{tildify(r.cwd)}</Text></Box>
+      {bar ? <Box width={1} flexShrink={0}><Text dimColor>{bar}</Text></Box> : null}
     </Box>
   );
 }

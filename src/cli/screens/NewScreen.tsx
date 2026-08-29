@@ -12,6 +12,8 @@ import {
 import { getTool } from '../../core/config/loadConfig.js';
 import { fuzzyMatch } from '../../core/fuzzy.js';
 import { countDirty } from '../../core/git.js';
+import { scrollbar } from '../viewport.js';
+import { useKeyChunk, upCount, downCount } from '../useKeyChunk.js';
 import type { AgentCliMenuConfig, ConfigError, ConfigWarning } from '../../core/config/types.js';
 import type { ProjectDir } from '../../core/groupScan.js';
 
@@ -22,6 +24,11 @@ interface NewScreenProps {
   configError?: ConfigError;
   /** ⇥ switches to the Resume tab (handled by AppShell). */
   onSwitchTab?: () => void;
+}
+
+/** ink hands over a whole chunk when you type fast — take all of it, not just one char. */
+function isPrintable(input: string): boolean {
+  return input.length > 0 && [...input].every((c) => c >= ' ' && c !== '\u007F');
 }
 
 type Row = { kind: 'header'; name: string; color: string } | { kind: 'dir'; dir: ProjectDir };
@@ -70,6 +77,9 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
 
   const clamped = Math.min(cursor, Math.max(0, dirs.length - 1));
   const selected = dirs[clamped];
+  // Filtering shrinks the list under the cursor — snap to the top so ↑/↓ stay responsive
+  // instead of counting down from a stale index.
+  useEffect(() => { setCursor(0); }, [query]);
 
   // Viewport: window the header+dir rows around the selection so long lists don't overflow.
   const termRows = process.stdout.rows ?? 30;
@@ -88,8 +98,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
   const ctxHeader = view[0]?.kind === 'dir'
     ? (() => { for (let i = winStart - 1; i >= 0; i--) { const r = rows[i]; if (r.kind === 'header') return r; } return null; })()
     : null;
-  const hiddenAbove = rows.slice(0, winStart).filter((r) => r.kind === 'dir').length;
-  const hiddenBelow = rows.slice(winEnd).filter((r) => r.kind === 'dir').length;
+  const bar = scrollbar(rows.length, winStart, view.length);
 
   // Uncommitted-change count — highlighted row only, debounced, cached per path.
   // Spawning git per row on the scan path is banned (CLAUDE.md); this is the one exception.
@@ -110,8 +119,12 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
     finish({ kind: 'launch', plan });
   };
 
+  const keyChunk = useKeyChunk();
+
   // ---- config error / empty states ----
   useInput((input, key) => {
+    // One stdin chunk can carry many presses (held-down arrow); ink only parses the first.
+    const moved = downCount(keyChunk.current, false) - upCount(keyChunk.current, false);
     if (key.ctrl && input === 'c') { finish({ kind: 'quit' }); return; }
 
     if (configError) {
@@ -147,15 +160,19 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
     if (input === '?') { setMode('help'); return; }
     if (key.tab && key.shift) { if (tools.length) setToolIdx((i) => (i + 1) % tools.length); return; }
     if (key.tab) { onSwitchTab?.(); return; }
-    if (key.upArrow) { setCursor((c) => Math.max(0, c - 1)); return; }
-    if (key.downArrow) { setCursor((c) => Math.min(dirs.length - 1, c + 1)); return; }
+    if (key.upArrow || key.downArrow) {
+      setCursor(Math.max(0, Math.min(dirs.length - 1, clamped + (moved || (key.downArrow ? 1 : -1)))));
+      return;
+    }
+    if (key.pageUp) { setCursor(Math.max(0, clamped - maxVisible)); return; }
+    if (key.pageDown) { setCursor(Math.min(dirs.length - 1, clamped + maxVisible)); return; }
     if (key.backspace || key.delete) { setQuery((q) => q.slice(0, -1)); return; }
 
     const k = key.ctrl && input ? 'ctrl-' + input.toLowerCase() : '';
     if (k === 'ctrl-n') { setMode('nd-base'); return; }
     if (!selected && k !== 'ctrl-n') {
       // no dir selected: only new-dir is meaningful; ignore other actions
-      if (!k && input && !key.ctrl && input >= ' ') setQuery((q) => q + input);
+      if (!k && input && !key.ctrl && isPrintable(input)) setQuery((q) => q + input);
       return;
     }
     if (selected) {
@@ -166,7 +183,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
       }
       if (key.return) { dispatch(planLaunch({ dir: selected.path, key: '', tool, insideTmux })); return; }
     }
-    if (!key.ctrl && input && input >= ' ' && input.length === 1) setQuery((q) => q + input);
+    if (!key.ctrl && isPrintable(input)) setQuery((q) => q + input);
   });
 
   const submitNewDir = (raw: string) => {
@@ -204,7 +221,8 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
         <Text bold color={hexColor(tool.color)}>  {tool.name} ›</Text>
         <Text dimColor>  tool </Text><Text color="cyan">{tool.name}</Text>
         {tools.length > 1 ? <Text dimColor> (⇧⇥)</Text> : null}
-        {query ? (<><Text dimColor>   /</Text><Text color="yellow">{query}</Text><Text dimColor>  ({dirs.length})</Text></>) : null}
+        {query ? (<><Text dimColor>   /</Text><Text color="yellow">{query}</Text></>) : null}
+        {dirs.length > 0 ? (<><Text dimColor>   </Text><Text color="gray">{clamped + 1}/{dirs.length}</Text></>) : null}
       </Box>
 
       {warnings.length > 0 ? (
@@ -222,31 +240,35 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
           ) : (
             <>
               <Box>
-                <Box width={2}><Text> </Text></Box>
-                <Box width={wNameNew} marginRight={1}><Text dimColor bold>NAME</Text></Box>
-                <Box width={wBranchNew} marginRight={1}><Text dimColor bold>BRANCH</Text></Box>
-                <Box width={wDirtyNew} marginRight={1}><Text dimColor bold> </Text></Box>
-                <Box flexGrow={1}><Text dimColor bold>AGE</Text></Box>
+                <Box width={2} flexShrink={0}><Text> </Text></Box>
+                <Box width={wNameNew} marginRight={1} flexShrink={0}><Text dimColor bold>NAME</Text></Box>
+                <Box width={wBranchNew} marginRight={1} flexShrink={0}><Text dimColor bold>BRANCH</Text></Box>
+                <Box width={wDirtyNew} marginRight={1} flexShrink={0}><Text dimColor bold> </Text></Box>
+                <Box flexGrow={1} minWidth={0}><Text dimColor bold>AGE</Text></Box>
               </Box>
               {ctxHeader ? <Text bold color={hexColor(ctxHeader.color)}>── {ctxHeader.name} ──</Text> : null}
-              {hiddenAbove > 0 ? <Text dimColor>  ▲ {hiddenAbove} more above</Text> : null}
               {view.map((row, i) => {
                 if (row.kind === 'header') {
-                  return <Text key={'h' + (winStart + i)} bold color={hexColor(row.color)}>── {row.name} ──</Text>;
+                  return (
+                    <Box key={'h' + (winStart + i)}>
+                      <Box flexGrow={1} minWidth={0}><Text bold color={hexColor(row.color)}>── {row.name} ──</Text></Box>
+                      {bar[i] ? <Box width={1} flexShrink={0}><Text dimColor>{bar[i]}</Text></Box> : null}
+                    </Box>
+                  );
                 }
                 const d = row.dir;
                 const sel = d === selected;
                 return (
                   <Box key={d.path}>
-                    <Box width={2}><Text bold color={sel ? 'yellow' : 'gray'}>{sel ? '▸' : ' '}</Text></Box>
-                    <Box width={wNameNew} marginRight={1}><Text bold={sel} color={sel ? 'cyan' : 'white'} wrap="truncate-end">{d.name}</Text></Box>
-                    <Box width={wBranchNew} marginRight={1}><Text color="magenta" wrap="truncate-end">{d.gitBranch ?? '–'}</Text></Box>
-                    <Box width={wDirtyNew} marginRight={1}><Text color="yellow">{sel && dirty[d.path] ? `±${dirty[d.path]}` : ''}</Text></Box>
-                    <Box flexGrow={1}><Text dimColor>{timeAgo(new Date(d.timeMs))}</Text></Box>
+                    <Box width={2} flexShrink={0}><Text bold color={sel ? 'yellow' : 'gray'}>{sel ? '▸' : ' '}</Text></Box>
+                    <Box width={wNameNew} marginRight={1} flexShrink={0}><Text bold={sel} color={sel ? 'cyan' : 'white'} wrap="truncate-end">{d.name}</Text></Box>
+                    <Box width={wBranchNew} marginRight={1} flexShrink={0}><Text color="magenta" wrap="truncate-end">{d.gitBranch ?? '–'}</Text></Box>
+                    <Box width={wDirtyNew} marginRight={1} flexShrink={0}><Text color="yellow">{sel && dirty[d.path] ? `±${dirty[d.path]}` : ''}</Text></Box>
+                    <Box flexGrow={1} minWidth={0}><Text dimColor>{timeAgo(new Date(d.timeMs))}</Text></Box>
+                    {bar[i] ? <Box width={1} flexShrink={0}><Text dimColor>{bar[i]}</Text></Box> : null}
                   </Box>
                 );
               })}
-              {hiddenBelow > 0 ? <Text dimColor>  ▼ {hiddenBelow} more below</Text> : null}
             </>
           )}
         </Box>
@@ -285,6 +307,7 @@ function HelpOverlay({ ides, toolName }: { ides: Array<{ key: string; label: str
     <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
       <Text bold color="cyan">keys — New</Text>
       <Row k="↑ / ↓" v="move selection" />
+      <Row k="pgup/pgdn" v="page through the list" />
       <Row k="type" v="fuzzy-filter the dirs" />
       <Row k="enter" v={`launch ${toolName} in the selected dir`} />
       <Row k="⇥ tab" v="switch to Resume" />
