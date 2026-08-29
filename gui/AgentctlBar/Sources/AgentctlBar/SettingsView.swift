@@ -30,6 +30,10 @@ struct SettingsView: View {
     @State private var hotkey = ""
     @State private var terminalOpts: [TerminalOpt] = []
     @State private var loaded = false
+    /// A save is out. The sheet stays open until it lands, so a failure can be shown where the
+    /// edits still are.
+    @State private var saving = false
+    @State private var saveError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,10 +52,15 @@ struct SettingsView: View {
                 }.padding(14)
             }
             Divider()
-            HStack {
+            HStack(spacing: 8) {
+                if let e = saveError {
+                    Label(e, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundColor(Tone.alarm).lineLimit(2)
+                }
                 Spacer()
+                if saving { ProgressView().controlSize(.small) }
                 Button("Cancel") { dismiss() }
-                Button("Save") { save() }.keyboardShortcut(.defaultAction)
+                Button("Save") { save() }.keyboardShortcut(.defaultAction).disabled(saving)
             }.padding(12)
         }
         .frame(width: 580, height: 640)
@@ -175,11 +184,19 @@ struct SettingsView: View {
             tools: tools.map { ToolDTO(name: $0.name, runs: $0.runs, label: $0.label.isEmpty ? " \($0.name) " : $0.label, color: $0.color) },
             ides: ides.map { IdeDTO(key: $0.key, label: $0.label, cmd: $0.cmd) }
         )
-        dismiss()
-        Cm.configSave(dto) {
+        // Do NOT dismiss first: a failed write used to close the sheet, report success and
+        // redisplay the old config, losing every edit with no signal.
+        saving = true
+        saveError = nil
+        Cm.configSave(dto, completion: {
+            saving = false
             onSaved()
             NotificationCenter.default.post(name: .cmReload, object: nil)
             NotificationCenter.default.post(name: .cmHotkeyChanged, object: nil)
-        }
+            dismiss()
+        }, onFailure: { message in
+            saving = false
+            saveError = message
+        })
     }
 }

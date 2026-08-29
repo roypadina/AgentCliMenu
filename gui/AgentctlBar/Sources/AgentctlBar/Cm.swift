@@ -112,10 +112,26 @@ enum Cm {
         let data = out.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
         if p.terminationStatus != 0 {
+            // The reason is on stdout, not stderr: `agentctl gui` prints {ok:false,error:"…"} and
+            // exits non-zero. Reading only stderr turned "unrecognised time: next tuesday" into
+            // "exit 4" — the most reachable failure in the app, explained away.
             let e = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw CmError.failed(e.isEmpty ? "exit \(p.terminationStatus)" : e)
+            throw CmError.failed(reason(stdout: data, stderr: e, status: p.terminationStatus))
         }
         return data
+    }
+
+    /// Best available sentence for a failure: the JSON `error` the CLI prints, else its plain
+    /// stdout, else stderr, else the bare status.
+    private static func reason(stdout: Data, stderr: String, status: Int32) -> String {
+        struct Failure: Decodable { let error: String? }
+        if let f = try? JSONDecoder().decode(Failure.self, from: stdout), let e = f.error, !e.isEmpty {
+            return e
+        }
+        let out = String(data: stdout, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !out.isEmpty { return out }
+        let e = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        return e.isEmpty ? "exit \(status)" : e
     }
 
     private static func runAsync<T: Decodable>(_ args: String, _ type: T.Type) async throws -> T {
@@ -139,7 +155,7 @@ enum Cm {
     private static func postFailure(_ error: Error) {
         let msg: String
         switch error {
-        case CmError.notFound: msg = "agentctl not found. Install it (brew or npm link)."
+        case CmError.notFound: msg = "agentctl not found. Install it: brew install --cask roypadina/tap/agentctl"
         case CmError.failed(let m): msg = m.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "the action failed." : m
         default: msg = "\(error)"
         }
@@ -170,16 +186,20 @@ enum Cm {
         remind: String? = nil, due: String? = nil,
         completion: (() -> Void)? = nil
     ) {
-        var args = "annotate --id '\(esc(id))'"
-        if let name { args += " --name '\(esc(name))'" }
-        if let note { args += " --note '\(esc(note))'" }
-        if let flags { args += " --flags '\(esc(flags.joined(separator: ",")))'" }
-        if let labels { args += " --labels '\(esc(labels.joined(separator: ",")))'" }
+        // `--opt=value`, not `--opt value`: the shell quoting is sound either way, but commander
+        // refuses a separate value that begins with `-`, and a leading dash is exactly what the
+        // terminal menu teaches for removing a flag. `--flags '-todo'` failed with nothing but
+        // "argument missing".
+        var args = "annotate --id='\(esc(id))'"
+        if let name { args += " --name='\(esc(name))'" }
+        if let note { args += " --note='\(esc(note))'" }
+        if let flags { args += " --flags='\(esc(flags.joined(separator: ",")))'" }
+        if let labels { args += " --labels='\(esc(labels.joined(separator: ",")))'" }
         if let done { args += " --done \(done)" }
         if let hidden { args += " --hidden \(hidden)" }
         if let deleted { args += " --deleted \(deleted)" }
-        if let remind { args += " --remind '\(esc(remind))'" }
-        if let due { args += " --due '\(esc(due))'" }
+        if let remind { args += " --remind='\(esc(remind))'" }
+        if let due { args += " --due='\(esc(due))'" }
         DispatchQueue.global().async {
             do { _ = try run(args) } catch { postFailure(error) }
             if let completion { DispatchQueue.main.async(execute: completion) }
@@ -196,23 +216,46 @@ enum Cm {
 
     /// Write the full config (shared with the TUI) by piping JSON to `agentctl gui config-save`.
     /// `completion` runs on the main thread after the write finishes (avoids a read-before-write race).
-    static func configSave(_ dto: ConfigDTO, completion: (() -> Void)? = nil) {
-        guard let data = try? JSONEncoder().encode(dto) else { return }
+    /// `completion` runs only on a write that actually succeeded — this is the one place in the
+    /// app that can lose typed work, so a failure must never look like a save. `onFailure` gets
+    /// the reason and runs on main.
+    static func configSave(
+        _ dto: ConfigDTO,
+        completion: (() -> Void)? = nil,
+        onFailure: ((String) -> Void)? = nil
+    ) {
+        guard let data = try? JSONEncoder().encode(dto) else {
+            DispatchQueue.main.async { onFailure?("Could not encode these settings.") }
+            return
+        }
         DispatchQueue.global().async {
+            let failure: String?
             if let cm = invocation() {
                 let p = Process()
                 p.executableURL = URL(fileURLWithPath: "/bin/sh")
                 p.arguments = ["-lc", "\(cm) gui config-save"]
-                let inp = Pipe(); p.standardInput = inp
-                p.standardOutput = Pipe(); p.standardError = Pipe()
+                let inp = Pipe(); let out = Pipe(); let err = Pipe()
+                p.standardInput = inp; p.standardOutput = out; p.standardError = err
                 do {
                     try p.run()
                     inp.fileHandleForWriting.write(data)
                     inp.fileHandleForWriting.closeFile()
+                    let o = out.fileHandleForReading.readDataToEndOfFile()
                     p.waitUntilExit()
-                } catch { /* ignore */ }
+                    failure = p.terminationStatus == 0 ? nil : reason(
+                        stdout: o,
+                        stderr: String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "",
+                        status: p.terminationStatus
+                    )
+                } catch {
+                    failure = "\(error)"
+                }
+            } else {
+                failure = "agentctl not found. Install it: brew install --cask roypadina/tap/agentctl"
             }
-            if let completion = completion { DispatchQueue.main.async(execute: completion) }
+            DispatchQueue.main.async {
+                if let failure { onFailure?(failure) } else { completion?() }
+            }
         }
     }
 
