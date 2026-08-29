@@ -11,6 +11,7 @@ import { fuzzyRank } from '../core/fuzzy.js';
 import { getRecap, readCachedRecap, spawnRun } from '../core/recap.js';
 import { windowFor, scrollbar } from './viewport.js';
 import { useKeyChunk, upCount, downCount } from './useKeyChunk.js';
+import { writeAnnotation, parseWhen, isReminderDue, type AnnotationPatch } from '../core/annotations.js';
 import type { SessionRecord, SessionStatus, TranscriptTurn } from '../core/types.js';
 
 interface RecapState { text?: string; loading?: boolean; error?: string }
@@ -27,7 +28,15 @@ function tildify(p: string): string {
   return p.startsWith(home) ? '~' + p.slice(home.length) : p;
 }
 
-type Mode = 'list' | 'filter' | 'peek' | 'search-input' | 'search-results' | 'help';
+type Mode = 'list' | 'filter' | 'peek' | 'search-input' | 'search-results' | 'help' | 'annotate';
+type PromptKind = 'name' | 'note' | 'flag' | 'remind';
+
+const PROMPTS: Record<PromptKind, string> = {
+  name: 'name (empty clears the override): ',
+  note: 'note (empty clears it): ',
+  flag: 'flags, space separated (-flag removes one, empty clears all): ',
+  remind: 'remind me in / at — 2h, tomorrow 9am, 17:00 (empty clears): ',
+};
 
 interface AppProps {
   initial: SessionRecord[];
@@ -65,16 +74,71 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const [searching, setSearching] = useState(false);
   const [searchCursor, setSearchCursor] = useState(0);
   const searchAbortRef = useRef<AbortController | null>(null);
+  const [prompt, setPrompt] = useState<{ kind: PromptKind; value: string } | null>(null);
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [hideDone, setHideDone] = useState(false);
 
-  const filtered = filter
-    ? fuzzyRank(filter, records, r => `${r.name}  ${tildify(r.cwd)}  ${r.id}`).map(x => x.item)
-    : records;
+  const visible = hideDone ? records.filter(r => !r.annotation?.done) : records;
+  const haystack = (r: SessionRecord) =>
+    `${r.name}  ${tildify(r.cwd)}  ${r.id}  ${(r.annotation?.flags ?? []).map(f => '#' + f).join(' ')}  ${r.annotation?.note ?? ''}`;
+  const filtered = filter ? fuzzyRank(filter, visible, haystack).map(x => x.item) : visible;
   const clamped = Math.min(cursor, Math.max(0, filtered.length - 1));
   // Re-filtering shrinks the list under the cursor. Snap back to the top, otherwise the stale
   // index leaves the selection pinned to the last row and ↑ looks dead until it counts down.
   useEffect(() => { setCursor(0); }, [filter]);
   const [confirmResumeId, setConfirmResumeId] = useState<string | null>(null);
   const activeCount = records.filter(r => r.active).length;
+  const doneCount = records.filter(r => r.annotation?.done).length;
+
+  /** Apply an annotation patch to the highlighted session and refresh it in place. */
+  const annotate = (s: SessionRecord, patch: AnnotationPatch) => {
+    const a = writeAnnotation(s.id, patch);
+    setRecords(rs => rs.map(r => (r.id === s.id ? { ...r, annotation: a, name: a.name ?? r.transcriptName } : r)));
+  };
+
+  const openPrompt = (kind: PromptKind) => {
+    const s = filtered[clamped];
+    if (!s) return;
+    const a = s.annotation;
+    const value = kind === 'name' ? (a?.name ?? '')
+      : kind === 'note' ? (a?.note ?? '')
+      : kind === 'flag' ? (a?.flags ?? []).join(' ')
+      : '';
+    setPrompt({ kind, value });
+    setPromptError(null);
+    setMode('annotate');
+  };
+
+  const submitPrompt = (raw: string) => {
+    const s = filtered[clamped];
+    const kind = prompt?.kind;
+    if (!s || !kind) { setMode('list'); setPrompt(null); return; }
+    const v = raw.trim();
+    let patch: AnnotationPatch;
+    if (kind === 'name') patch = { name: v || null };
+    else if (kind === 'note') patch = { note: v || null };
+    else if (kind === 'flag') {
+      if (!v) patch = { removeFlags: s.annotation?.flags ?? [] };
+      else {
+        const words = v.split(/\s+/);
+        patch = {
+          addFlags: words.filter(w => !w.startsWith('-')),
+          removeFlags: words.filter(w => w.startsWith('-')).map(w => w.slice(1)),
+        };
+      }
+    } else {
+      if (!v) patch = { remindAt: null };
+      else {
+        const at = parseWhen(v);
+        if (!at) { setPromptError(`can't read a time out of "${v}"`); return; }
+        patch = { remindAt: at.toISOString() };
+      }
+    }
+    annotate(s, patch);
+    setMode('list');
+    setPrompt(null);
+    setPromptError(null);
+  };
 
   // Recap (R): generated lazily via `claude -p` (haiku) and cached. The highlighted row auto-shows
   // a cached recap if one exists; R generates/refreshes it. State is keyed by session id.
@@ -151,6 +215,10 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
       if (key.escape) { setMode('list'); return; }
       return;
     }
+    if (mode === 'annotate') {
+      if (key.escape) { setMode('list'); setPrompt(null); setPromptError(null); }
+      return; // TextInput owns the rest
+    }
     if (mode === 'peek') {
       if (key.escape || input === 'p' || input === 'q') {
         setMode('list');
@@ -222,6 +290,16 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     if (input === 'g') { setCursor(0); setConfirmResumeId(null); }
     if (input === 'G') { setCursor(Math.max(0, filtered.length - 1)); setConfirmResumeId(null); }
     if (input === '/') setMode('filter');
+    if (input === 'e') { openPrompt('name'); return; }
+    if (input === 'n') { openPrompt('note'); return; }
+    if (input === 'f') { openPrompt('flag'); return; }
+    if (input === 't') { openPrompt('remind'); return; }
+    if (input === 'd') {
+      const sel = filtered[clamped];
+      if (sel) annotate(sel, { done: !sel.annotation?.done });
+      return;
+    }
+    if (input === 'h') { setHideDone(v => !v); setCursor(0); return; }
     if (input === 's') {
       setSearchInput(searchQuery);
       setMode('search-input');
@@ -256,11 +334,23 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const tableInner = Math.max(48, cols - 4);
   const wBranch = 12;
   const wUsed = 14; // "Jun 09 10:43"
-  const wName = Math.max(16, Math.min(44, Math.floor((tableInner - 4 - 2 - wBranch - wUsed) * 0.5)));
-  // 1-line rows; leave room for the table border + the on-highlight details pane + chrome.
-  // The filter prompt is two extra lines — not subtracting them overflows the terminal, which
-  // scrolls the header off-screen and hides where you are in the list.
-  const rowsPerView = Math.max(3, rows - 18 - (mode === 'filter' ? 2 : 0));
+  const wName = Math.max(16, Math.min(44, Math.floor((tableInner - 4 - 2 - 4 - wBranch - wUsed) * 0.5)));
+  // The list is the ONLY elastic block on screen, so its height is whatever the fixed chrome
+  // and the (content-sized) details pane leave over. Guessing a constant here is what pushed
+  // the header off-screen whenever a note, a recap or a prompt appeared.
+  const sel = filtered[clamped];
+  const selRecap = sel ? recaps[sel.id] : undefined;
+  const recapBodyLines = selRecap?.text
+    ? Math.min(6, selRecap.text.split('\n').filter(l => l.trim()).length)
+    : 1;
+  const noteLines = sel?.annotation?.note ? Math.min(3, sel.annotation.note.split('\n').length) : 0;
+  const detailsHeight = sel
+    ? 2 + 4 + (sel.annotation ? 1 : 0) + noteLines + 1 + recapBodyLines +
+      (confirmResumeId === sel.id ? 1 : 0)
+    : 0;
+  const CHROME = 10; // tab bar 2 + header 2 + gap 1 + table border/header 3 + footer 2
+  const promptHeight = mode === 'filter' ? 2 : mode === 'annotate' ? (promptError ? 3 : 2) : 0;
+  const rowsPerView = Math.max(3, rows - CHROME - detailsHeight - promptHeight);
   const { start, end: viewEnd } = windowFor(filtered.length, clamped, rowsPerView);
   const view = filtered.slice(start, viewEnd);
   const listBar = scrollbar(filtered.length, start, view.length);
@@ -278,6 +368,13 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         <Text dimColor> sessions  ·  </Text>
         <Text color="green">{activeCount}</Text>
         <Text dimColor> active</Text>
+        {doneCount > 0 ? (
+          <>
+            <Text dimColor>  ·  </Text>
+            <Text color="green">{doneCount}</Text>
+            <Text dimColor> done{hideDone ? ' (hidden)' : ''}</Text>
+          </>
+        ) : null}
         {filter ? (
           <>
             <Text dimColor>  ·  filter </Text>
@@ -313,6 +410,20 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         </Box>
       ) : null}
 
+      {mode === 'annotate' && prompt ? (
+        <Box marginTop={1} flexDirection="column">
+          <Box>
+            <Text color="yellow">{PROMPTS[prompt.kind]}</Text>
+            <TextInput
+              value={prompt.value}
+              onChange={(v) => setPrompt(p => (p ? { ...p, value: v } : p))}
+              onSubmit={submitPrompt}
+            />
+          </Box>
+          {promptError ? <Text color="red">{promptError}</Text> : null}
+        </Box>
+      ) : null}
+
       {mode === 'search-input' ? (
         <Box marginTop={1}>
           <Text color="magenta">search: </Text>
@@ -325,7 +436,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         </Box>
       ) : null}
 
-      {mode === 'list' || mode === 'filter' ? (
+      {mode === 'list' || mode === 'filter' || mode === 'annotate' ? (
         <Box marginTop={1} flexDirection="column">
           <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
             <TableHeader wName={wName} wBranch={wBranch} wUsed={wUsed} />
@@ -422,6 +533,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
           <HelpRow k="p" v="peek transcript (↑/↓ · g/G · pgup/pgdn to scroll)" />
           <HelpRow k="/" v="fuzzy-filter the list" />
           <HelpRow k="s" v="full-text search across all transcripts" />
+          <HelpRow k="e / n" v="edit name / note" />
+          <HelpRow k="f / t" v="flags / reminder" />
+          <HelpRow k="d / h" v="toggle done / hide done" />
           <HelpRow k="^r" v="refresh sessions" />
           <HelpRow k="⇥ tab" v="switch to New" />
           <HelpRow k="q" v="quit" />
@@ -541,6 +655,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
               <Text dimColor> · p </Text><Text color="white">peek</Text>
               <Text dimColor> · / </Text><Text color="white">filter</Text>
               <Text dimColor> · s </Text><Text color="white">search</Text>
+              <Text dimColor> · e/n/f/t/d </Text><Text color="white">annotate</Text>
               <Text dimColor> · ? </Text><Text color="white">help</Text>
               <Text dimColor> · q </Text><Text color="white">quit</Text>
             </>
@@ -557,12 +672,25 @@ function TableHeader({ wName, wBranch, wUsed }: { wName: number; wBranch: number
       <Box width={4} flexShrink={0}><Text dimColor bold>ST</Text></Box>
       <Box width={2} flexShrink={0}><Text dimColor bold> </Text></Box>
       <Box width={wName} marginRight={1} flexShrink={0}><Text dimColor bold>NAME</Text></Box>
+      <Box width={4} flexShrink={0}><Text dimColor bold> </Text></Box>
       <Box width={wBranch} marginRight={1} flexShrink={0}><Text dimColor bold>BRANCH</Text></Box>
       <Box width={wUsed} marginRight={1} flexShrink={0}><Text dimColor bold>LAST USED</Text></Box>
       <Box flexGrow={1} minWidth={0}><Text dimColor bold>CWD</Text></Box>
       <Box width={1} flexShrink={0}><Text dimColor> </Text></Box>
     </Box>
   );
+}
+
+/** One-cell marks for the annotation state. Every glyph here measures 1 column. */
+function badgeMarks(r: SessionRecord): Array<{ ch: string; color: string }> {
+  const a = r.annotation;
+  if (!a) return [];
+  const out: Array<{ ch: string; color: string }> = [];
+  if (a.done) out.push({ ch: '✓', color: 'green' });
+  if (a.flags.length) out.push({ ch: '⚑', color: 'yellow' });
+  if (a.note) out.push({ ch: '✎', color: 'cyan' });
+  if (a.remindAt) out.push({ ch: '◆', color: isReminderDue(a) ? 'red' : 'magenta' });
+  return out;
 }
 
 function Row({ r, selected, wName, wBranch, wUsed, bar }: {
@@ -575,6 +703,9 @@ function Row({ r, selected, wName, wBranch, wUsed, bar }: {
       <Box width={2} flexShrink={0}><Text bold color="yellow">{r.cwdDecodeConfident ? ' ' : '!'}</Text></Box>
       <Box width={wName} marginRight={1} flexShrink={0}>
         <Text bold={selected} color={selected ? 'cyan' : 'white'} wrap="truncate-end">{r.name}</Text>
+      </Box>
+      <Box width={4} flexShrink={0}>
+        {badgeMarks(r).map((m, i) => <Text key={i} color={m.color}>{m.ch}</Text>)}
       </Box>
       <Box width={wBranch} marginRight={1} flexShrink={0}><Text color="magenta" wrap="truncate-end">{r.gitBranch ?? '–'}</Text></Box>
       <Box width={wUsed} marginRight={1} flexShrink={0}><Text color="cyan" wrap="truncate-end">{formatDate(r.lastUpdatedAt)}</Text></Box>
@@ -606,6 +737,22 @@ function DetailsPane({ s, recap, confirming }: { s: SessionRecord; recap?: Recap
         <Text dimColor> (</Text><Text color="yellow">{timeAgo(s.lastUpdatedAt)}</Text><Text dimColor> ago)</Text>
       </Box>
       <Box><Text color="green" wrap="truncate-middle">{tildify(s.cwd)}</Text></Box>
+      {s.annotation ? (
+        <Box>
+          {s.annotation.done ? <Text color="green">✓ done   </Text> : null}
+          {s.annotation.flags.map(f => <Text key={f} color="yellow">#{f} </Text>)}
+          {s.annotation.remindAt ? (
+            <Text color={isReminderDue(s.annotation) ? 'red' : 'magenta'}>
+              {'  ◆ '}{isReminderDue(s.annotation) ? 'due ' : 'remind '}{formatDate(new Date(s.annotation.remindAt))}
+            </Text>
+          ) : null}
+        </Box>
+      ) : null}
+      {s.annotation?.note
+        ? s.annotation.note.split('\n').slice(0, 3).map((l, i) => (
+            <Text key={i} color="cyan" wrap="truncate-end">✎ {l}</Text>
+          ))
+        : null}
       <Box flexDirection="column">
         <Text bold color={recapLines ? 'green' : 'gray'}>recap</Text>
         {recap?.loading ? (

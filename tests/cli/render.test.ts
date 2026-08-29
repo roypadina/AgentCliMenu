@@ -9,6 +9,7 @@ function stripAnsi(s: string): string {
 const sample: SessionRecord = {
   id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   name: 'first session',
+  transcriptName: 'first session',
   cwd: '/Users/me/proj',
   cwdDecodeConfident: true,
   jsonlPath: '/x',

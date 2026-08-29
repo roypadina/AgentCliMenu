@@ -62,9 +62,11 @@ function buildRecord(
   live: LiveSession | null,
   annotation: Annotation | undefined,
 ): SessionRecord {
+  const transcriptName = scan.customTitle ?? scan.aiTitle ?? scan.firstPrompt ?? '(no prompt yet)';
   return {
     id,
-    name: annotation?.name ?? scan.customTitle ?? scan.aiTitle ?? scan.firstPrompt ?? '(no prompt yet)',
+    name: annotation?.name ?? transcriptName,
+    transcriptName,
     cwd: live?.cwd ?? decoded.cwd,
     cwdDecodeConfident: live ? true : decoded.confident,
     jsonlPath,

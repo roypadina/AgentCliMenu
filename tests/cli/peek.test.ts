@@ -14,6 +14,7 @@ function stripAnsi(s: string): string {
 const session: SessionRecord = {
   id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   name: 'sample',
+  transcriptName: 'sample',
   cwd: '/tmp',
   cwdDecodeConfident: true,
   jsonlPath: fixture,

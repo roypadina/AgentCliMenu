@@ -2,7 +2,10 @@ export type SessionStatus = 'busy' | 'idle' | 'inactive';
 
 export interface SessionRecord {
   id: string;
+  /** Display name: the annotation's name override when set, else `transcriptName`. */
   name: string;
+  /** Name derived from the JSONL alone (custom-title → ai-title → first prompt). */
+  transcriptName: string;
   cwd: string;
   cwdDecodeConfident: boolean;
   jsonlPath: string;

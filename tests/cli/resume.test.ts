@@ -6,6 +6,7 @@ function record(overrides: Partial<SessionRecord> = {}): SessionRecord {
   return {
     id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     name: 'x',
+    transcriptName: 'x',
     cwd: '/tmp',
     cwdDecodeConfident: true,
     jsonlPath: '/x.jsonl',

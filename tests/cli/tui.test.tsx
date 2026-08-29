@@ -6,7 +6,7 @@ import type { SessionRecord } from '../../src/core/types.js';
 
 function rec(id: string, name: string): SessionRecord {
   return {
-    id, name, cwd: '/tmp',
+    id, name, transcriptName: name, cwd: '/tmp',
     cwdDecodeConfident: true,
     jsonlPath: '/x.jsonl',
     sizeBytes: 0,
