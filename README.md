@@ -194,6 +194,22 @@ Annotate the highlighted session in place: `e` name · `n` note · `l` labels ·
 `v` shows the hidden ones, `H` shows/hides done ones, `T` filters tool runs. (`l` pre-fills the issue
 key from the branch.)
 
+**Menu-bar app** — the same letters, with ⌘. Type to filter, `↑/↓` to move, `⏎` to resume, and
+`⌘/` for the whole list in the app (there is no menu bar to find them in):
+
+| | | | |
+|---|---|---|---|
+| `⌘E` name | `⇧⌘N` note | `⌘L` labels | `⇧⌘F` flags |
+| `⌘T` remind | `⌘U` due | `⌘D` done | `⇧⌘H` hide |
+| `⌘⌫` delete | `⌘P` details pane | `⌘R` recap | `⇧⌘C` copy resume command |
+| `⇧⌘D` hide done | `⇧⌘T` tool runs | `⇧⌘V` hidden | `⇧⌘R` reload |
+| `⇧⌘A` account | `⌘F` clear search | `⇥` New ⇄ Resume | `esc` back |
+
+⌘ is what separates a command from typing — the search field holds focus permanently. Where macOS
+already owns a combination (`⌘H` hides the app, `⌘X`/`⌘C`/`⌘V` edit text) the shift variant is used,
+and delete takes Finder's `⌘⌫`. The annotation shortcuts open the details pane and drop the caret
+straight into the right field; `esc` puts it back in the search box.
+
 `space` marks sessions — `h`, `x` and `d` then act on every marked one at once, and the cursor stays
 where it was instead of jumping back to the top.
 

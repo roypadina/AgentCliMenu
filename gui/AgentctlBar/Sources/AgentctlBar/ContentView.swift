@@ -65,6 +65,17 @@ struct ContentView: View {
     /// Overrides which Claude account a resume uses; nil = the session's own.
     @State private var profileOverride: Profile?
 
+    // ── keyboard shortcuts (see Shortcuts.swift) ──
+    /// Focus target inside the annotation editor, so ⌘E lands in the name field.
+    @FocusState private var annFocus: AnnField?
+    /// Bumped to send focus back to the search field; KeyboardSearchField re-grabs on a change.
+    @State private var searchFocusToken = 0
+    @State private var showShortcuts = false
+    @State private var keyMonitor: Any?
+    /// The window hosting THIS copy of the view — the popover and the detached window each have
+    /// one, and a local monitor sees keys meant for either.
+    @State private var hostWindow: NSWindow?
+
     private var query: String { search.trimmingCharacters(in: .whitespaces) }
 
     private static let isoFrac: ISO8601DateFormatter = {
@@ -122,7 +133,11 @@ struct ContentView: View {
         }
         .padding(10)
         .frame(minWidth: 380, idealWidth: 460, maxWidth: .infinity, minHeight: 420, idealHeight: 560, maxHeight: .infinity)
+        .background(WindowReader { hostWindow = $0 })
         .task { await loadAll() }
+        .onAppear(perform: installKeyMonitor)
+        .onDisappear(perform: removeKeyMonitor)
+        .sheet(isPresented: $showShortcuts) { ShortcutsSheet { showShortcuts = false } }
         .onChange(of: search) { _ in selection = 0; confirmResumeId = nil }
         // Keep the annotation editor pointed at whatever row is actually selected.
         .onChange(of: selectedSession?.id) { id in loadAnnotationFields(id: id) }
@@ -181,7 +196,8 @@ struct ContentView: View {
             }
             KeyboardSearchField(
                 text: $search,
-                placeholder: tab == .new ? "Filter projects…  (↑↓ select · ⏎ open · ⇥ Resume)" : "Search sessions…  (↑↓ select · ⏎ resume · ⇥ New)",
+                placeholder: tab == .new ? "Filter projects…  (↑↓ select · ⏎ open · ⇥ Resume)" : "Search sessions…  (↑↓ select · ⏎ resume · ⌘/ keys)",
+                focusRequest: searchFocusToken,
                 onMoveUp: { move(-1) },
                 onMoveDown: { move(1) },
                 onSubmit: activate,
@@ -340,15 +356,18 @@ struct ContentView: View {
             }
             TextField("name this session", text: $annName)
                 .textFieldStyle(.roundedBorder).font(.caption2)
+                .focused($annFocus, equals: .name)
                 .onSubmit { Cm.annotate(id: s.id, name: annName) { Task { await refreshSessions() } } }
             TextField("labels — ticket, repo, topic (RD-12345, catalog)", text: $annLabels)
                 .textFieldStyle(.roundedBorder).font(.caption2)
+                .focused($annFocus, equals: .labels)
                 .onSubmit {
                     let list = annLabels.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
                     Cm.annotate(id: s.id, labels: list.filter { !$0.isEmpty }) { Task { await refreshSessions() } }
                 }
             TextField("flags, comma separated (todo, later…)", text: $annFlags)
                 .textFieldStyle(.roundedBorder).font(.caption2)
+                .focused($annFocus, equals: .flags)
                 .onSubmit {
                     let list = annFlags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
                     Cm.annotate(id: s.id, flags: list.filter { !$0.isEmpty }) { Task { await refreshSessions() } }
@@ -356,15 +375,18 @@ struct ContentView: View {
             // single-line: TextField(text:axis:) and lineLimit(range) are macOS 13+, this app targets 12
             TextField("note", text: $annNote)
                 .textFieldStyle(.roundedBorder).font(.caption2)
+                .focused($annFocus, equals: .note)
                 .onSubmit { Cm.annotate(id: s.id, note: annNote) { Task { await refreshSessions() } } }
             // The menus above cover the common presets; these take anything the CLI parses
             // (2h, 30m, 3d, "tomorrow 9am", 17:00, an ISO date). Empty clears.
             HStack(spacing: 4) {
                 TextField("remind — 2h, tomorrow 9am…", text: $annRemind)
                     .textFieldStyle(.roundedBorder).font(.caption2)
+                    .focused($annFocus, equals: .remind)
                     .onSubmit { Cm.annotate(id: s.id, remind: annRemind) { Task { await refreshSessions() } } }
                 TextField("due — 3d, friday 17:00…", text: $annDue)
                     .textFieldStyle(.roundedBorder).font(.caption2)
+                    .focused($annFocus, equals: .due)
                     .onSubmit { Cm.annotate(id: s.id, due: annDue) { Task { await refreshSessions() } } }
             }
         }
@@ -628,6 +650,113 @@ struct ContentView: View {
         }
     }
 
+    // ── ⌘-shortcuts ──
+    // The search field owns every plain keystroke, so commands need ⌘. A local monitor rather
+    // than `.keyboardShortcut` on the buttons: most of these act on the selected session whether
+    // or not the details pane that holds those buttons is on screen.
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+            handleShortcut(e) ? nil : e
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
+    }
+
+    private func handleShortcut(_ e: NSEvent) -> Bool {
+        // Claim a key only for the surface it was typed into.
+        guard let host = hostWindow, e.window === host else { return false }
+        guard !showSettings, !showNewDir, !showShortcuts else { return false }
+
+        let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard mods.contains(.command), !mods.contains(.control), !mods.contains(.option) else { return false }
+        let shift = mods.contains(.shift)
+
+        // ⌘⌫ — Finder's "move to trash". Here it only takes the session out of the lists.
+        if e.keyCode == 51 && !shift { return annotateSelected { s in (deleted: !s.isDeleted, hidden: nil, done: nil) } }
+
+        guard let key = e.charactersIgnoringModifiers?.lowercased(), key.count == 1 else { return false }
+
+        if key == "/" { showShortcuts = true; return true }
+        if key == "p" { showPeek.toggle(); return true }
+
+        switch (key, shift) {
+        case ("f", false):                       // ⌘F is Find everywhere; here the field is always
+            search = ""                          // focused, so it means "start the search over".
+            searchFocusToken += 1
+            return true
+        case ("r", true):
+            Task { await reload() }
+            return true
+        case ("r", false):
+            guard let s = selectedSession else { return true }
+            generateRecap(s.id, refresh: recapCache[s.id] != nil)
+            return true
+        case ("c", true):
+            guard let s = selectedSession else { return true }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString("agentctl resume \(s.id)", forType: .string)
+            copiedId = s.id
+            return true
+        case ("d", true):
+            hideDone.toggle(); selection = 0
+            return true
+        case ("t", true):
+            kindFilter = kindFilter == nil ? "interactive" : kindFilter == "interactive" ? "tool" : nil
+            selection = 0
+            return true
+        case ("v", true):
+            sessionView = sessionView == "hidden" ? "normal" : "hidden"
+            selection = 0
+            return true
+        case ("a", true):
+            cycleProfileOverride()
+            return true
+        case ("d", false):
+            return annotateSelected { s in (deleted: nil, hidden: nil, done: !s.isDone) }
+        case ("h", true):
+            return annotateSelected { s in (deleted: nil, hidden: !s.isHidden, done: nil) }
+        case ("e", false): return focusAnnotation(.name)
+        case ("l", false): return focusAnnotation(.labels)
+        case ("f", true):  return focusAnnotation(.flags)
+        case ("n", true):  return focusAnnotation(.note)
+        case ("t", false): return focusAnnotation(.remind)
+        case ("u", false): return focusAnnotation(.due)
+        default: return false
+        }
+    }
+
+    /// Open the details pane if it is shut, then put the caret in one of its fields.
+    private func focusAnnotation(_ field: AnnField) -> Bool {
+        guard tab == .resume, let s = selectedSession else { return true }
+        showPeek = true
+        loadAnnotationFields(id: s.id)
+        // The pane may have only just been added to the hierarchy; focus after it exists.
+        DispatchQueue.main.async { annFocus = field }
+        return true
+    }
+
+    /// Toggle one of the three flags on the selected session. Returns true so the key is consumed
+    /// even with nothing selected — ⌘D must never leak through as a system shortcut.
+    private func annotateSelected(
+        _ patch: (Session) -> (deleted: Bool?, hidden: Bool?, done: Bool?)
+    ) -> Bool {
+        guard tab == .resume, let s = selectedSession else { return true }
+        let p = patch(s)
+        Cm.annotate(id: s.id, done: p.done, hidden: p.hidden, deleted: p.deleted) {
+            Task { await refreshSessions() }
+        }
+        return true
+    }
+
+    private func cycleProfileOverride() {
+        guard profiles.count > 1 else { return }
+        let i = profileOverride.flatMap { cur in profiles.firstIndex { $0.home == cur.home } } ?? -1
+        profileOverride = i + 1 >= profiles.count ? nil : profiles[i + 1]
+    }
+
     // ── keyboard actions ──
     private func move(_ delta: Int) {
         guard count > 0 else { return }
@@ -652,6 +781,7 @@ struct ContentView: View {
         Cm.resume(id: s.id, profileHome: profileOverride?.home); onAction()
     }
     private func cancel() {
+        if annFocus != nil { annFocus = nil; searchFocusToken += 1; return }
         if confirmResumeId != nil { confirmResumeId = nil; return }
         if !search.isEmpty { search = ""; return }
         onAction() // Esc with nothing to clear → close the popover or the detached window

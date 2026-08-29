@@ -11,6 +11,9 @@ import AppKit
 struct KeyboardSearchField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
+    /// Bump this to pull focus back here — after Esc out of an annotation field, say. It starts at
+    /// 0 and the field also grabs focus the first time it lands in a window.
+    var focusRequest: Int = 0
     var onMoveUp: () -> Void = {}
     var onMoveDown: () -> Void = {}
     var onSubmit: () -> Void = {}
@@ -41,9 +44,9 @@ struct KeyboardSearchField: NSViewRepresentable {
         context.coordinator.parent = self
         if nsView.stringValue != text { nsView.stringValue = text }
         nsView.placeholderString = placeholder
-        // Grab focus once, as soon as we're in a window.
-        if !context.coordinator.didFocus, let window = nsView.window {
-            context.coordinator.didFocus = true
+        // Grab focus the first time we're in a window, and again whenever the caller asks.
+        if context.coordinator.servedFocus != focusRequest, let window = nsView.window {
+            context.coordinator.servedFocus = focusRequest
             DispatchQueue.main.async { window.makeFirstResponder(nsView) }
         }
     }
@@ -52,7 +55,7 @@ struct KeyboardSearchField: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: KeyboardSearchField
-        var didFocus = false
+        var servedFocus: Int?
         init(_ parent: KeyboardSearchField) { self.parent = parent }
 
         func controlTextDidChange(_ obj: Notification) {
