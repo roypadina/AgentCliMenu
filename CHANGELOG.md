@@ -3,6 +3,15 @@
 All notable changes to Agentctl are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.6.1] — 2026-08-29
+
+### Fixed
+
+- **The GUI can now do everything the TUI can.** Two gaps closed: it had no show/hide-done control
+  (the TUI'''s `H`), and its reminder and due-date menus only offered fixed presets, so times like
+  `friday 17:00` were terminal-only. The view menu gained a done toggle, and both dates now have a
+  free-text field accepting anything the CLI parses, with the preset menus kept as shortcuts.
+
 ## [0.6.0] — 2026-08-29
 
 ### Added

@@ -54,6 +54,9 @@ struct ContentView: View {
     @State private var annLabels = ""
     /// normal | hidden | deleted — hidden and deleted are listing preferences only.
     @State private var sessionView = "normal"
+    @State private var hideDone = false
+    @State private var annRemind = ""
+    @State private var annDue = ""
 
     private var query: String { search.trimmingCharacters(in: .whitespaces) }
 
@@ -78,7 +81,7 @@ struct ContentView: View {
     }
     private var newFlat: [Dir] { newSections.flatMap { $0.dirs } }
     private var resumeItems: [Session] {
-        Fuzzy.rank(query, sessions.filter(inSessionView)) {
+        Fuzzy.rank(query, sessions.filter { inSessionView($0) && passesDoneFilter($0) }) {
             "\($0.name)  \(tilde($0.cwd))  \($0.id)  "
                 + $0.tags.map { "#" + $0 }.joined(separator: " ") + "  "
                 + $0.tickets.joined(separator: " ") + "  " + ($0.note ?? "")
@@ -149,6 +152,10 @@ struct ContentView: View {
                         Button("Normal") { sessionView = "normal"; selection = 0 }
                         Button("Hidden") { sessionView = "hidden"; selection = 0 }
                         Button("Deleted") { sessionView = "deleted"; selection = 0 }
+                        Divider()
+                        Button(hideDone ? "Show done sessions" : "Hide done sessions") {
+                            hideDone.toggle(); selection = 0
+                        }
                     } label: {
                         Image(systemName: sessionView == "deleted" ? "trash"
                                         : sessionView == "hidden" ? "eye.slash" : "list.bullet")
@@ -337,6 +344,16 @@ struct ContentView: View {
             TextField("note", text: $annNote)
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .onSubmit { Cm.annotate(id: s.id, note: annNote) { Task { await refreshSessions() } } }
+            // The menus above cover the common presets; these take anything the CLI parses
+            // (2h, 30m, 3d, "tomorrow 9am", 17:00, an ISO date). Empty clears.
+            HStack(spacing: 4) {
+                TextField("remind — 2h, tomorrow 9am…", text: $annRemind)
+                    .textFieldStyle(.roundedBorder).font(.caption2)
+                    .onSubmit { Cm.annotate(id: s.id, remind: annRemind) { Task { await refreshSessions() } } }
+                TextField("due — 3d, friday 17:00…", text: $annDue)
+                    .textFieldStyle(.roundedBorder).font(.caption2)
+                    .onSubmit { Cm.annotate(id: s.id, due: annDue) { Task { await refreshSessions() } } }
+            }
         }
     }
 
@@ -349,6 +366,8 @@ struct ContentView: View {
         annFlags = s.tags.joined(separator: ", ")
         annLabels = s.tickets.joined(separator: ", ")
         annNote = s.note ?? ""
+        annRemind = ""
+        annDue = ""
     }
 
     /// Hidden and deleted never leave the transcript — they only drop out of listings here.
@@ -359,6 +378,8 @@ struct ContentView: View {
         default:        return !s.isHidden && !s.isDeleted
         }
     }
+
+    private func passesDoneFilter(_ s: Session) -> Bool { !(hideDone && s.isDone) }
 
     /// Compact annotation markers: done · flagged · noted · reminder (red once due).
     @ViewBuilder
