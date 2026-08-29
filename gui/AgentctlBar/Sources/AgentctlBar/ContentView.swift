@@ -81,10 +81,9 @@ struct ContentView: View {
     @State private var annExpanded = false
     /// Which of Remind / Due has its `Custom…` field open, if either.
     @State private var customWhen: AnnField?
-    /// Measured width of the details pane — the action row wraps below 240pt.
-    @State private var paneWidth: CGFloat = 0
-    /// Measured width of a list row; the branch drops below 340pt.
-    @State private var rowWidth: CGFloat = 0
+    /// Measured width of the session list — rows are as wide as it is, and the branch drops
+    /// below 340pt.
+    @State private var listWidth: CGFloat = 0
     /// Transient footer message — where a row just went, mostly.
     @State private var footerNote: String?
     @State private var noteToken = 0
@@ -132,7 +131,10 @@ struct ContentView: View {
         GeometryReader { geo in
             if !showPeek {
                 resumeList
-            } else if geo.size.width >= 560 {
+            } else if geo.size.width >= 601 {
+                // 300 + 1 divider + 300. The threshold must never be below the sum of the
+                // branch's own minimums, or the branch is entered and then clips below them —
+                // which is the whole bug this drawer exists to remove.
                 HSplitView {
                     resumeList.frame(minWidth: 300)
                     peekPane.frame(minWidth: 300, idealWidth: 340)
@@ -350,9 +352,9 @@ struct ContentView: View {
             .onChange(of: selection) { _ in withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(selIndex, anchor: .center) } }
             .task(id: tab) { if tab == .resume { await loadSessions() } }
             .background(GeometryReader { g in
-                Color.clear.preference(key: RowWidthKey.self, value: g.size.width)
+                Color.clear.preference(key: ListWidthKey.self, value: g.size.width)
             })
-            .onPreferenceChange(RowWidthKey.self) { rowWidth = $0 }
+            .onPreferenceChange(ListWidthKey.self) { listWidth = $0 }
         }
     }
 
@@ -392,10 +394,6 @@ struct ContentView: View {
                 .onSubmit { Cm.annotate(id: s.id, note: annNote) { Task { await refreshSessions() } } }
             }
         }
-        .background(GeometryReader { g in
-            Color.clear.preference(key: PaneWidthKey.self, value: g.size.width)
-        })
-        .onPreferenceChange(PaneWidthKey.self) { paneWidth = $0 }
     }
 
     /// What you have already said about this session, in one line, with the way in. The fields
@@ -419,25 +417,16 @@ struct ContentView: View {
         }
     }
 
-    /// Done · when · where. Wraps once the pane is narrower than the horizontal row actually
-    /// needs: 278.8pt with both setters carrying a value, hence 280 — measuring the threshold
-    /// against what the narrow branch may occupy instead left a band where the wide row was
-    /// chosen and then clipped.
-    @ViewBuilder
+    /// Done · when · where. One row at every reachable width: the pane's floor is 300pt (the
+    /// split's own minimum, and the drawer is full-width), and this row's worst case is 278.8pt
+    /// with both setters showing a value. The wrapping variant it used to carry was dead code.
     private func actionRow(_ s: Session) -> some View {
-        if paneWidth < 280 {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) { doneToggle(s); Spacer(minLength: 0); shelfMenu(s) }
-                HStack(spacing: 8) { whenMenu(s, .remind); whenMenu(s, .due); Spacer(minLength: 0) }
-            }
-        } else {
-            HStack(spacing: 8) {
-                doneToggle(s)
-                whenMenu(s, .remind)
-                whenMenu(s, .due)
-                Spacer(minLength: 0)
-                shelfMenu(s)
-            }
+        HStack(spacing: 8) {
+            doneToggle(s)
+            whenMenu(s, .remind)
+            whenMenu(s, .due)
+            Spacer(minLength: 0)
+            shelfMenu(s)
         }
     }
 
@@ -468,15 +457,8 @@ struct ContentView: View {
             Button("Custom…") { openCustomWhen(s, which) }
             if iso != nil { Button(isRemind ? "Clear reminder" : "Clear due date") { setWhen(s, which, "") } }
         } label: {
-            // ≥400pt: verb or value. 240–400: the value alone, or just the glyph when unset —
-            // the tooltip still carries the word, and dropping it here saves the wrap.
-            let full = paneWidth == 0 || paneWidth >= 400
-            let value = whenLabel(iso, verb: isRemind ? "Remind" : "Due")
-            if full || iso != nil {
-                Label(value, systemImage: isRemind ? "bell" : "calendar")
-            } else {
-                Image(systemName: isRemind ? "bell" : "calendar")
-            }
+            Label(whenLabel(iso, verb: isRemind ? "Remind" : "Due"),
+                  systemImage: isRemind ? "bell" : "calendar")
         }
         .font(.caption2).menuStyle(.borderlessButton).fixedSize()
         .foregroundColor(live ? Tone.alarm : .secondary)
@@ -655,7 +637,7 @@ struct ContentView: View {
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(.secondary)
                         .lineLimit(1).truncationMode(.middle)
-                    if let b = s.gitBranch, rowWidth == 0 || rowWidth >= 340 {
+                    if let b = s.gitBranch, listWidth == 0 || listWidth >= 340 {
                         Text("· ⎇ \(b)")
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundColor(Tone.branch)
@@ -1170,14 +1152,7 @@ struct NewDirView: View {
 
 /// Width of the details pane, so the action row knows when to wrap. `ViewThatFits` and the
 /// `Layout` protocol are macOS 13+; this app targets 12.
-private struct RowWidthKey: PreferenceKey {
+private struct ListWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
-private struct PaneWidthKey: PreferenceKey {
-    /// Large, not zero: the first pass runs before any measurement, and guessing wide there lays
-    /// a 280pt row inside whatever space exists for one frame. Guessing narrow clips nothing.
-    static var defaultValue: CGFloat = .greatestFiniteMagnitude
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
