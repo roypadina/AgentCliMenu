@@ -255,7 +255,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
                   return (
                     <Box key={'h' + (winStart + i)}>
                       <Box flexGrow={1} minWidth={0}><Text bold color={hexColor(row.color)}>── {row.name} ──</Text></Box>
-                      {bar[i] ? <Box width={1} flexShrink={0}><Text dimColor>{bar[i]}</Text></Box> : null}
+                      {bar[i] ? <Box width={1} marginLeft={1} flexShrink={0}><Text dimColor>{bar[i]}</Text></Box> : null}
                     </Box>
                   );
                 }
@@ -268,7 +268,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
                     <Box width={wBranchNew} marginRight={1} flexShrink={0}><Text color="magenta" wrap="truncate-end">{d.gitBranch ?? '–'}</Text></Box>
                     <Box width={wDirtyNew} marginRight={1} flexShrink={0}><Text color="yellow">{sel && dirty[d.path] ? `±${dirty[d.path]}` : ''}</Text></Box>
                     <Box flexGrow={1} minWidth={0}><Text dimColor>{timeAgo(new Date(d.timeMs))}</Text></Box>
-                    {bar[i] ? <Box width={1} flexShrink={0}><Text dimColor>{bar[i]}</Text></Box> : null}
+                    {bar[i] ? <Box width={1} marginLeft={1} flexShrink={0}><Text dimColor>{bar[i]}</Text></Box> : null}
                   </Box>
                 );
               })}

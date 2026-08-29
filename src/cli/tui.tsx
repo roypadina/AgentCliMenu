@@ -90,6 +90,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const [confirmResumeId, setConfirmResumeId] = useState<string | null>(null);
   const activeCount = records.filter(r => r.active).length;
   const doneCount = records.filter(r => r.annotation?.done).length;
+  const dueCount = records.filter(r => isReminderDue(r.annotation)).length;
 
   /** Apply an annotation patch to the highlighted session and refresh it in place. */
   const annotate = (s: SessionRecord, patch: AnnotationPatch) => {
@@ -369,6 +370,13 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         <Text dimColor> sessions  ·  </Text>
         <Text color="green">{activeCount}</Text>
         <Text dimColor> active</Text>
+        {dueCount > 0 ? (
+          <>
+            <Text dimColor>  ·  </Text>
+            <Text color="red" bold>◆ {dueCount}</Text>
+            <Text dimColor> due</Text>
+          </>
+        ) : null}
         {doneCount > 0 ? (
           <>
             <Text dimColor>  ·  </Text>
@@ -677,7 +685,7 @@ function TableHeader({ wName, wBranch, wUsed }: { wName: number; wBranch: number
       <Box width={wBranch} marginRight={1} flexShrink={0}><Text dimColor bold>BRANCH</Text></Box>
       <Box width={wUsed} marginRight={1} flexShrink={0}><Text dimColor bold>LAST USED</Text></Box>
       <Box flexGrow={1} minWidth={0}><Text dimColor bold>CWD</Text></Box>
-      <Box width={1} flexShrink={0}><Text dimColor> </Text></Box>
+      <Box width={1} marginLeft={1} flexShrink={0}><Text dimColor> </Text></Box>
     </Box>
   );
 }
@@ -711,7 +719,7 @@ function Row({ r, selected, wName, wBranch, wUsed, bar }: {
       <Box width={wBranch} marginRight={1} flexShrink={0}><Text color="magenta" wrap="truncate-end">{r.gitBranch ?? '–'}</Text></Box>
       <Box width={wUsed} marginRight={1} flexShrink={0}><Text color="cyan" wrap="truncate-end">{formatDate(r.lastUpdatedAt)}</Text></Box>
       <Box flexGrow={1} minWidth={0}><Text color="green" wrap="truncate-middle">{tildify(r.cwd)}</Text></Box>
-      {bar ? <Box width={1} flexShrink={0}><Text dimColor>{bar}</Text></Box> : null}
+      {bar ? <Box width={1} marginLeft={1} flexShrink={0}><Text dimColor>{bar}</Text></Box> : null}
     </Box>
   );
 }
