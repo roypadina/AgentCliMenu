@@ -66,14 +66,24 @@ enum AnnField: Hashable { case name, labels, flags, note, remind, due }
 struct WindowReader: NSViewRepresentable {
     let onWindow: (NSWindow?) -> Void
 
-    func makeNSView(context: Context) -> NSView {
-        let v = NSView(frame: .zero)
-        DispatchQueue.main.async { onWindow(v.window) }
-        return v
+    final class Coordinator {
+        /// Last window handed up. Reporting unconditionally writes @State on every update, and
+        /// @State has no equality short-circuit — the write invalidates the body, which updates
+        /// this view, which writes again. That is a render loop bounded only by the run loop.
+        var last: NSWindow?
+        var reported = false
     }
 
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSView { NSView(frame: .zero) }
+
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { onWindow(nsView.window) }
+        let window = nsView.window
+        guard !context.coordinator.reported || window !== context.coordinator.last else { return }
+        context.coordinator.reported = true
+        context.coordinator.last = window
+        DispatchQueue.main.async { onWindow(window) }
     }
 }
 

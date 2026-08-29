@@ -27,6 +27,8 @@ struct ContentView: View {
     @State private var selectedTool = ""
     @State private var loading = false
     @State private var sessionsLoaded = false
+    /// Set when the scan fails, so the list offers a retry instead of spinning forever.
+    @State private var sessionsError: String?
     @State private var errorText: String?
     @State private var showSettings = false
     @State private var showNewDir = false
@@ -128,7 +130,9 @@ struct ContentView: View {
             } else if showPeek {
                 // Draggable divider — drag left/right to resize the list vs the preview.
                 HSplitView {
-                    resumeList.frame(minWidth: 240)
+                    // 240 here plus the pane's own minimum used to demand 501pt inside the
+                    // popover's 380, and SwiftUI answers that by clipping below both.
+                    resumeList.frame(minWidth: 150)
                     peekPane
                 }
             } else {
@@ -229,11 +233,16 @@ struct ContentView: View {
                                 dirRow(d, index: sec.start + i).id(sec.start + i)
                             }
                         }
-                        if newFlat.isEmpty {
+                        if projects == nil {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text("Reading your project folders…").font(.caption).foregroundColor(.secondary)
+                            }.padding()
+                        } else if newFlat.isEmpty {
                             emptyState(
                                 (projects?.groups.isEmpty ?? true)
-                                    ? "No groups configured.\nRun: agentctl config --setup"
-                                    : query.isEmpty ? "No project dirs found." : "No matches for “\(query)”."
+                                    ? "No project folders yet. Run agentctl config --setup to add one."
+                                    : query.isEmpty ? "Nothing to open here yet." : "No matches for “\(query)”."
                             )
                         }
                     }
@@ -277,10 +286,19 @@ struct ContentView: View {
                     ForEach(Array(resumeItems.enumerated()), id: \.element.id) { i, s in
                         sessionRow(s, index: i).id(i)
                     }
-                    if !sessionsLoaded {
-                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text("loading…").font(.caption).foregroundColor(.secondary) }.padding()
+                    if let err = sessionsError {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Could not read your sessions.").font(.caption)
+                            Text(err).font(.caption2).foregroundColor(.secondary).lineLimit(4)
+                            Button("Try again") { sessionsError = nil; Task { await refreshSessions() } }
+                                .font(.caption2)
+                        }.padding()
+                    } else if !sessionsLoaded {
+                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Reading your sessions…").font(.caption).foregroundColor(.secondary) }.padding()
                     } else if resumeItems.isEmpty {
-                        emptyState(sessions.isEmpty ? "No sessions yet." : "No matches for “\(query)”.")
+                        emptyState(sessions.isEmpty
+                            ? "No sessions yet. Start one from New and it shows up here."
+                            : "No matches for “\(query)”.")
                     }
                 }
             }
@@ -530,9 +548,13 @@ struct ContentView: View {
                             .help("cwd uncertain — confirm before resuming")
                     }
                     Text(s.name).fontWeight(sel ? .semibold : .regular).lineLimit(1)
+                        .layoutPriority(1)
                     annotationBadges(s)
-                    Spacer()
-                    if let b = s.gitBranch { Text("⎇ \(b)").font(.caption2).foregroundColor(.purple) }
+                    Spacer(minLength: 0)
+                    if let b = s.gitBranch {
+                        Text("⎇ \(b)").font(.caption2).foregroundColor(.purple)
+                            .lineLimit(1).truncationMode(.head).layoutPriority(-1)
+                    }
                 }
                 Text(tilde(s.cwd)).font(.caption2).foregroundColor(.secondary).lineLimit(1)
                 if confirming {
@@ -654,7 +676,7 @@ struct ContentView: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(minWidth: 260, idealWidth: 340, maxWidth: .infinity)
+        .frame(minWidth: 200, idealWidth: 340, maxWidth: .infinity)
         // Debounced transcript fetch + instant cached-recap load when the selection settles.
         .task(id: selectedSession?.id) {
             await loadPeek()
@@ -895,14 +917,22 @@ struct ContentView: View {
     private func loadSessions() async {
         guard !sessionsLoaded else { return }
         loading = true; defer { loading = false }
-        do { sessions = try await Cm.sessions(); sessionsLoaded = true } catch { errorText = describe(error) }
+        do {
+            sessions = try await Cm.sessions()
+            sessionsError = nil
+        } catch {
+            sessionsError = describe(error)
+        }
+        sessionsLoaded = true
     }
     /// Re-read sessions after a write, bypassing the once-only `sessionsLoaded` guard.
     private func refreshSessions() async {
         do {
             sessions = try await Cm.sessions()
             annEditingId = nil   // let the editor re-read the fields it just wrote
-        } catch { errorText = describe(error) }
+            sessionsError = nil
+            sessionsLoaded = true
+        } catch { sessionsError = describe(error); sessionsLoaded = true }
     }
     private func reload() async {
         errorText = nil; sessions = []; sessionsLoaded = false; peekCache = [:]; peekFailed = []
