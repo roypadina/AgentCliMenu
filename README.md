@@ -203,7 +203,7 @@ key from the branch.)
 | `⌘T` remind | `⌘U` due | `⌘D` done | `⇧⌘H` hide |
 | `⌘⌫` delete | `⌘P` details pane | `⌘R` recap | `⇧⌘C` copy resume command |
 | `⇧⌘D` hide done | `⇧⌘T` tool runs | `⇧⌘V` hidden | `⇧⌘R` reload |
-| `⇧⌘A` account | `⌘F` clear search | `⇥` New ⇄ Resume | `esc` back |
+| `⇧⌘A` account | `⌘F` clear search | `⌘,` settings | `⇥` New ⇄ Resume |
 
 ⌘ is what separates a command from typing — the search field holds focus permanently. Where macOS
 already owns a combination (`⌘H` hides the app, `⌘X`/`⌘C`/`⌘V` edit text) the shift variant is used,

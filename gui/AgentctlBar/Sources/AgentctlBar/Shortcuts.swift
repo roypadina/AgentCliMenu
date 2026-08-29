@@ -48,11 +48,13 @@ enum Shortcut {
             Row(keys: "⌘U", what: "Set when the work is due"),
             Row(keys: "⌘D", what: "Mark it done"),
             Row(keys: "⇧⌘H", what: "Hide it from the normal list"),
-            Row(keys: "⌘⌫", what: "Take it out of every list — recoverable"),
+            Row(keys: "⌘⌫", what: "Move it to Deleted — recoverable, the transcript is untouched"),
         ]),
         Group(title: "Other", rows: [
+            Row(keys: "⇧⇥", what: "Cycle the tool to launch — New tab"),
             Row(keys: "⇧⌘A", what: "Change which Claude account resumes it"),
-            Row(keys: "⌘/", what: "This list"),
+            Row(keys: "⌘,", what: "Settings"),
+            Row(keys: "⌘/", what: "This list — press it again to close"),
         ]),
     ]
 }
@@ -97,6 +99,9 @@ struct ShortcutsSheet: View {
                 Text("Keyboard").font(.headline)
                 Spacer()
                 Button("Done", action: onClose).keyboardShortcut(.defaultAction)
+                // esc closes it too — without this the shortcut list is the one place in the app
+                // the keyboard does not work.
+                Button("", action: onClose).keyboardShortcut(.cancelAction).opacity(0).frame(width: 0)
             }
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
 

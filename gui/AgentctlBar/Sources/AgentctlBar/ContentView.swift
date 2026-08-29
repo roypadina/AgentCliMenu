@@ -85,6 +85,9 @@ struct ContentView: View {
     @State private var paneWidth: CGFloat = 0
     /// Measured width of a list row; the branch drops below 340pt.
     @State private var rowWidth: CGFloat = 0
+    /// Transient footer message — where a row just went, mostly.
+    @State private var footerNote: String?
+    @State private var noteToken = 0
 
     private var query: String { search.trimmingCharacters(in: .whitespaces) }
 
@@ -147,12 +150,16 @@ struct ContentView: View {
     /// A menu-bar app has no menu bar, so the one line of chrome that says the keyboard exists.
     private var footerHint: some View {
         HStack(spacing: 0) {
-            Text(tab == .new ? "⏎ open   ·   ⇧⇥ tool   ·   ⌘/ shortcuts"
-                             : showPeek ? "⏎ resume   ·   ⌘P close   ·   ⌘/ shortcuts"
-                                        : "⏎ resume   ·   ⌘P details   ·   ⌘/ shortcuts")
+            Text(footerNote ?? (tab == .new ? "⏎ open   ·   ⇧⇥ tool   ·   ⌘/ shortcuts"
+                                            : showPeek ? "⏎ resume   ·   ⌘P close   ·   ⌘/ shortcuts"
+                                                       : "⏎ resume   ·   ⌘P details   ·   ⌘/ shortcuts"))
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(.secondary)
-            Spacer(minLength: 0)
+                .foregroundColor(footerNote == nil ? .secondary : .orange)
+                .lineLimit(1).truncationMode(.tail)
+            Spacer(minLength: 4)
+            Button { showShortcuts = true } label: { Image(systemName: "questionmark.circle").font(.system(size: 11)) }
+                .buttonStyle(.borderless).foregroundColor(.secondary)
+                .help("Keyboard shortcuts  (⌘/)").accessibilityLabel("Keyboard shortcuts")
         }
     }
 
@@ -196,12 +203,14 @@ struct ContentView: View {
                 Picker("", selection: $tab) {
                     ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 170)
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
                 .accessibilityLabel("New or Resume")
                 Spacer()
                 if tab == .resume {
-                    Button { showPeek.toggle() } label: { Image(systemName: showPeek ? "sidebar.right" : "eye") }
-                        .buttonStyle(.borderless).help(showPeek ? "Hide preview (⌘P)" : "Preview transcript (⌘P)")
+                    Button { showPeek.toggle() } label: {
+                        Image(systemName: "sidebar.right").symbolVariant(showPeek ? .fill : .none)
+                    }
+                        .buttonStyle(.borderless).help(showPeek ? "Hide the details  (⌘P)" : "Show the details  (⌘P)")
                         .keyboardShortcut("p", modifiers: .command)
                         .accessibilityLabel("Toggle transcript preview")
                 }
@@ -210,7 +219,7 @@ struct ContentView: View {
                 }
                 if tab == .resume {
                     Menu {
-                        Button("Normal") { sessionView = "normal"; selection = 0 }
+                        Button("Listed") { sessionView = "normal"; selection = 0 }
                         Button("Hidden") { sessionView = "hidden"; selection = 0 }
                         Button("Deleted") { sessionView = "deleted"; selection = 0 }
                         Divider()
@@ -228,14 +237,14 @@ struct ContentView: View {
                                         : kindFilter == "interactive" ? "person" : "list.bullet")
                     }
                     .menuStyle(.borderlessButton).fixedSize()
-                    .foregroundColor(sessionView != "normal" || kindFilter != nil ? .orange : .secondary)
+                    .foregroundColor(sessionView != "normal" || kindFilter != nil || hideDone ? .orange : .secondary)
                     .help("Which sessions to list: normal, hidden or deleted; interactive or tool runs")
                 }
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }.buttonStyle(.borderless).help("Settings")
             }
             KeyboardSearchField(
                 text: $search,
-                placeholder: tab == .new ? "Filter projects…  (↑↓ select · ⏎ open · ⇥ Resume)" : "Search sessions…  (↑↓ select · ⏎ resume · ⌘/ keys)",
+                placeholder: tab == .new ? "Filter projects" : "Search sessions",
                 focusRequest: searchFocusToken,
                 onMoveUp: { move(-1) },
                 onMoveDown: { move(1) },
@@ -267,14 +276,21 @@ struct ContentView: View {
                         if projects == nil {
                             HStack(spacing: 6) {
                                 ProgressView().controlSize(.small)
-                                Text("Reading your project folders…").font(.caption).foregroundColor(.secondary)
+                                Text("Reading your project folders…").font(.system(size: 11)).foregroundColor(.secondary)
                             }.padding()
                         } else if newFlat.isEmpty {
-                            emptyState(
-                                (projects?.groups.isEmpty ?? true)
-                                    ? "No project folders yet. Run agentctl config --setup to add one."
-                                    : query.isEmpty ? "Nothing to open here yet." : "No matches for “\(query)”."
-                            )
+                            if projects?.groups.isEmpty ?? true {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("No project groups yet.").font(.system(size: 11))
+                                    Text("Groups tell agentctl where your projects live.")
+                                        .font(.system(size: 11)).foregroundColor(.secondary)
+                                    Button("Open Settings") { showSettings = true }.font(.system(size: 11))
+                                }.padding()
+                            } else if query.isEmpty {
+                                emptyState("No project folders under these groups.")
+                            } else {
+                                emptyState("No projects match “\(query)”.  Esc clears the search.")
+                            }
                         }
                     }
                 }
@@ -319,17 +335,15 @@ struct ContentView: View {
                     }
                     if let err = sessionsError {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Could not read your sessions.").font(.caption)
+                            Text("Can't read your sessions.").font(.system(size: 11))
                             Text(err).font(.caption2).foregroundColor(.secondary).lineLimit(4)
                             Button("Try again") { sessionsError = nil; Task { await refreshSessions() } }
                                 .font(.caption2)
                         }.padding()
                     } else if !sessionsLoaded {
-                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Reading your sessions…").font(.caption).foregroundColor(.secondary) }.padding()
+                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Scanning sessions…").font(.system(size: 11)).foregroundColor(.secondary) }.padding()
                     } else if resumeItems.isEmpty {
-                        emptyState(sessions.isEmpty
-                            ? "No sessions yet. Start one from New and it shows up here."
-                            : "No matches for “\(query)”.")
+                        emptyState(emptyResumeCopy)
                     }
                 }
             }
@@ -405,12 +419,13 @@ struct ContentView: View {
         }
     }
 
-    /// Done · when · where. Wraps to two lines once the pane is too narrow to hold all three —
-    /// in the popover it is, which is how four of the old row's seven controls came to be clipped
-    /// off screen entirely.
+    /// Done · when · where. Wraps once the pane is narrower than the horizontal row actually
+    /// needs: 278.8pt with both setters carrying a value, hence 280 — measuring the threshold
+    /// against what the narrow branch may occupy instead left a band where the wide row was
+    /// chosen and then clipped.
     @ViewBuilder
     private func actionRow(_ s: Session) -> some View {
-        if paneWidth > 0 && paneWidth < 240 {
+        if paneWidth < 280 {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) { doneToggle(s); Spacer(minLength: 0); shelfMenu(s) }
                 HStack(spacing: 8) { whenMenu(s, .remind); whenMenu(s, .due); Spacer(minLength: 0) }
@@ -521,6 +536,24 @@ struct ContentView: View {
         Cm.annotate(id: s.id, hidden: shelf == "Hidden", deleted: shelf == "Deleted") {
             Task { await refreshSessions() }
         }
+        // Choosing anything but Listed makes the row vanish from the view you are looking at, so
+        // say where it went rather than letting it appear to have been destroyed.
+        switch shelf {
+        case "Hidden":  flashNote("Hidden — see it under ≣ → Hidden.")
+        case "Deleted": flashNote("Deleted — restore it any time from ≣ → Deleted.")
+        default:        flashNote("Back in the list.")
+        }
+    }
+
+    /// A footer note that clears itself. `noteToken` guards against an earlier note's timer
+    /// wiping a later one.
+    private func flashNote(_ text: String) {
+        noteToken += 1
+        let mine = noteToken
+        footerNote = text
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            if noteToken == mine { footerNote = nil }
+        }
     }
 
     /// "Remind" when nothing is set, the value itself once it is — "◆ 2h" beats "Remind" plus a
@@ -630,8 +663,8 @@ struct ContentView: View {
                     }
                 }
                 if confirming {
-                    Text("⚠ cwd uncertain — press ⏎ again to resume anyway, esc to cancel")
-                        .font(.caption2).foregroundColor(.orange)
+                    Text("Working directory is a guess — ⏎ again resumes there anyway · esc cancels")
+                        .font(.system(size: 11)).foregroundColor(.orange)
                 }
             }
             .contentShape(Rectangle())
@@ -750,19 +783,23 @@ struct ContentView: View {
                 Divider()
                 // ── transcript ──
                 if peekLoadingId == s.id {
-                    HStack(spacing: 6) { ProgressView().controlSize(.small); Text("loading…").font(.caption2).foregroundColor(.secondary) }
+                    HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Loading transcript…").font(.system(size: 11)).foregroundColor(.secondary) }
                 } else if peekFailed.contains(s.id) {
-                    Text("(couldn’t read transcript)").font(.caption2).foregroundColor(.secondary)
+                    // A failed read used to be permanent — nothing cleared the id again.
+                    HStack(spacing: 6) {
+                        Text("Can't read this transcript.").font(.system(size: 11)).foregroundColor(.secondary)
+                        Button("Try again") { peekFailed.remove(s.id) }.font(.system(size: 11))
+                    }
                 } else if let turns = peekCache[s.id] {
                     if turns.isEmpty {
-                        Text("(empty transcript)").font(.caption2).foregroundColor(.secondary)
+                        Text("No messages yet.").font(.system(size: 11)).foregroundColor(.secondary)
                     } else {
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 3) {
                                 ForEach(Array(turns.enumerated()), id: \.offset) { _, t in
                                     HStack(alignment: .top, spacing: 4) {
                                         Text("[\(t.role)]").font(.system(size: 10, design: .monospaced)).foregroundColor(roleColor(t.role))
-                                        Text(t.text).font(.system(size: 10)).foregroundColor(.primary).lineLimit(4)
+                                        Text(t.text).font(.system(size: 11, design: .monospaced)).foregroundColor(.primary).lineLimit(4)
                                     }
                                 }
                             }
@@ -848,18 +885,22 @@ struct ContentView: View {
     private func handleShortcut(_ e: NSEvent) -> Bool {
         // Claim a key only for the surface it was typed into.
         guard let host = hostWindow, e.window === host else { return false }
-        guard !showSettings, !showNewDir, !showShortcuts else { return false }
+        guard !showSettings, !showNewDir else { return false }
 
         let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard mods.contains(.command), !mods.contains(.control), !mods.contains(.option) else { return false }
         let shift = mods.contains(.shift)
+
+        // Read before the sheet guard: ⌘/ has to be able to close what it opened.
+        if e.charactersIgnoringModifiers == "/" { showShortcuts.toggle(); return true }
+        guard !showShortcuts else { return false }
 
         // ⌘⌫ — Finder's "move to trash". Here it only takes the session out of the lists.
         if e.keyCode == 51 && !shift { return annotateSelected { s in (deleted: !s.isDeleted, hidden: nil, done: nil) } }
 
         guard let key = e.charactersIgnoringModifiers?.lowercased(), key.count == 1 else { return false }
 
-        if key == "/" { showShortcuts = true; return true }
+        if key == "," { showSettings = true; return true }   // the macOS convention
         if key == "p" { showPeek.toggle(); return true }
 
         switch (key, shift) {
@@ -932,6 +973,9 @@ struct ContentView: View {
         Cm.annotate(id: s.id, done: p.done, hidden: p.hidden, deleted: p.deleted) {
             Task { await refreshSessions() }
         }
+        if p.hidden == true { flashNote("Hidden — see it under ≣ → Hidden.") }
+        if p.deleted == true { flashNote("Deleted — restore it any time from ≣ → Deleted.") }
+        if p.hidden == false || p.deleted == false { flashNote("Back in the list.") }
         return true
     }
 
@@ -982,11 +1026,25 @@ struct ContentView: View {
         if sel { RoundedRectangle(cornerRadius: 5).fill(Color.accentColor.opacity(0.22)) }
         else { Color.clear }
     }
+    /// Say which filter emptied the list, not just that it is empty — the reason is the fix.
+    private var emptyResumeCopy: String {
+        if !query.isEmpty { return "No sessions match “\(query)”." }
+        if sessions.isEmpty { return "No sessions yet. Start one from the New tab and it will show up here." }
+        if sessionView == "hidden" { return "Nothing hidden." }
+        if sessionView == "deleted" { return "Nothing deleted." }
+        if kindFilter == "tool" { return "No tool runs." }
+        if kindFilter == "interactive" { return "No interactive sessions." }
+        if hideDone { return "Every session here is done. ⇧⌘D shows them." }
+        return "No sessions to show."
+    }
+
     private func emptyState(_ s: String) -> some View {
         Text(s).font(.caption).foregroundColor(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding()
     }
+    /// Role colours collapse to the token set: nothing in a transcript earns green or cyan, which
+    /// mean done and nothing respectively everywhere else.
     private func roleColor(_ r: String) -> Color {
-        switch r { case "user": return .cyan; case "assistant": return .green; case "tool": return .orange; default: return .secondary }
+        switch r { case "assistant": return .primary; case "tool": return .orange; default: return .secondary }
     }
     private func statusColor(_ s: String) -> Color { s == "busy" ? .green : s == "idle" ? .yellow : .gray }
     private func statusText(_ s: String) -> String { s == "busy" ? "busy" : s == "idle" ? "idle" : "inactive" }
@@ -1116,6 +1174,8 @@ private struct RowWidthKey: PreferenceKey {
 }
 
 private struct PaneWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    /// Large, not zero: the first pass runs before any measurement, and guessing wide there lays
+    /// a 280pt row inside whatever space exists for one frame. Guessing narrow clips nothing.
+    static var defaultValue: CGFloat = .greatestFiniteMagnitude
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
