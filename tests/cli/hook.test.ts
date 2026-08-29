@@ -55,6 +55,37 @@ describe('sessionStartContext', () => {
   });
 
   it('always ends with the tool list so the model knows the commands', () => {
-    expect(sessionStartContext(payload, none).trimEnd()).toMatch(/agentctl done`\.$|agentctl done`[^\n]*$/);
+    const last = sessionStartContext(payload, none).trimEnd().split('\n').at(-1)!;
+    expect(last).toContain('agentctl name/note/label/flag/remind/due/done');
+    expect(last).toContain('agentctl-sessions');
+  });
+
+  it('points at the branch issue key when the session has no labels yet', () => {
+    const out = sessionStartContext(payload, { ...none, branch: () => 'feature/RD-12345-thing' });
+    expect(out).toContain('RD-12345');
+    expect(out).toContain('agentctl label RD-12345');
+  });
+
+  it('says nothing about the branch once labels exist', () => {
+    const out = sessionStartContext(payload, {
+      ...none,
+      annotation: () => ann({ labels: ['RD-999'] }),
+      branch: () => 'feature/RD-12345-thing',
+    });
+    expect(out).toContain('RD-999');
+    expect(out).not.toContain('RD-12345');
+  });
+
+  it('flags an overdue session and reports a future due date plainly', () => {
+    const now = new Date('2026-08-29T12:00:00Z');
+    const overdue = sessionStartContext(payload, {
+      ...none, annotation: () => ann({ dueAt: '2020-01-01T00:00:00Z' }), now,
+    });
+    expect(overdue).toContain('past its due date');
+    const upcoming = sessionStartContext(payload, {
+      ...none, annotation: () => ann({ dueAt: '2030-01-01T00:00:00Z' }), now,
+    });
+    expect(upcoming).toContain('Due 2030-01-01');
+    expect(upcoming).not.toContain('past its due date');
   });
 });
