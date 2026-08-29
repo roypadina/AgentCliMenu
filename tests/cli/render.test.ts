@@ -11,6 +11,7 @@ const sample: SessionRecord = {
   name: 'first session',
   transcriptName: 'first session',
   cwd: '/Users/me/proj',
+  launchCwd: '/Users/me/proj',
   cwdDecodeConfident: true,
   kind: 'interactive' as const,
   jsonlPath: '/x',

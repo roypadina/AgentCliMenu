@@ -43,7 +43,7 @@ export function buildProgram(): Command {
 Two menus
   agentctl                 New — pick a project directory, start a session there
   agentctl -r              Resume — search every past session and pick one up
-  ? inside either menu     the full keymap for that screen
+  ? inside either menu     the full keymap and what every marker means
 
 Annotate a session
   Run these INSIDE a Claude session and they target that session. From anywhere

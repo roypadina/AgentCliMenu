@@ -10,6 +10,7 @@ function record(overrides: Partial<SessionRecord> = {}): SessionRecord {
     name: 'x',
     transcriptName: 'x',
     cwd: '/tmp',
+    launchCwd: '/tmp',
     cwdDecodeConfident: true,
     kind: 'interactive' as const,
     jsonlPath: '/x.jsonl',

@@ -14,6 +14,12 @@ export interface ScanResult {
    * the SDK, MCP or IDE entry points. `null` on a transcript too old to carry the field.
    */
   entrypoint: string | null;
+  /**
+   * The last working directory the transcript records. Claude Code stamps `cwd` on every record
+   * and it follows the session as it moves, so this is where the work actually happened — the
+   * project directory name only ever encodes where `claude` was launched.
+   */
+  lastCwd: string | null;
 }
 
 /** Anything that is not the interactive CLI was driven by a tool, not typed by a human. */
@@ -98,6 +104,7 @@ export async function scanJsonl(path: string): Promise<ScanResult> {
   let firstTimestamp: Date | null = null;
   let corruptLines = 0;
   let entrypoint: string | null = null;
+  let lastCwd: string | null = null;
   try {
     for await (const line of rl) {
       if (!line) continue;
@@ -127,9 +134,10 @@ export async function scanJsonl(path: string): Promise<ScanResult> {
       if (entrypoint === null && typeof o.entrypoint === 'string') {
         entrypoint = o.entrypoint;
       }
+      if (typeof o.cwd === 'string' && o.cwd) lastCwd = o.cwd;
     }
   } finally {
     stream.destroy();
   }
-  return { firstPrompt, customTitle, aiTitle, firstTimestamp, corruptLines, entrypoint };
+  return { firstPrompt, customTitle, aiTitle, firstTimestamp, corruptLines, entrypoint, lastCwd };
 }

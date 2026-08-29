@@ -16,6 +16,7 @@ const session: SessionRecord = {
   name: 'sample',
   transcriptName: 'sample',
   cwd: '/tmp',
+  launchCwd: '/tmp',
   cwdDecodeConfident: true,
   kind: 'interactive' as const,
   jsonlPath: fixture,

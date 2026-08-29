@@ -997,7 +997,12 @@ function DetailsPane({ s, recap, confirming, deleting, deletingCount, account, o
         <Text dimColor>last used </Text><Text color="cyan">{formatDate(s.lastUpdatedAt)}</Text>
         <Text dimColor> (</Text><Text color="yellow">{timeAgo(s.lastUpdatedAt)}</Text><Text dimColor> ago)</Text>
       </Box>
-      <Box><Text color="green" wrap="truncate-middle">{tildify(s.cwd)}</Text></Box>
+      <Box>
+        <Text color="green" wrap="truncate-middle">{tildify(s.cwd)}</Text>
+        {s.launchCwd !== s.cwd && !narrow ? (
+          <Text dimColor wrap="truncate-end">   (launched in {tildify(s.launchCwd)})</Text>
+        ) : null}
+      </Box>
       {s.annotation ? (
         <Box>
           {s.annotation.done ? <Text color="green">✓ done   </Text> : null}

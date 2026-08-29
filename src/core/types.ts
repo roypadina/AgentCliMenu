@@ -13,7 +13,17 @@ export interface SessionRecord {
   name: string;
   /** Name derived from the JSONL alone (custom-title → ai-title → first prompt). */
   transcriptName: string;
+  /**
+   * Where the work actually happened — the last directory the transcript recorded, which follows
+   * the session as it moves. Falls back to `launchCwd` when the transcript names nowhere that
+   * still exists. This is what gets listed, and what a resume drops you into.
+   */
   cwd: string;
+  /**
+   * Where `claude` was launched, decoded from the project directory name. Often a parent of
+   * `cwd` — you start in ~/Code and end up working three directories down.
+   */
+  launchCwd: string;
   cwdDecodeConfident: boolean;
   jsonlPath: string;
   sizeBytes: number;

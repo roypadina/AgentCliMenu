@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { projectsDirs } from './paths.js';
 import { decodeCwd } from './decode.js';
@@ -66,12 +66,20 @@ function buildRecord(
   configDir: string,
 ): SessionRecord {
   const transcriptName = scan.customTitle ?? scan.aiTitle ?? scan.firstPrompt ?? '(no prompt yet)';
+  // The transcript's own last cwd beats both the pid file and the decoded directory name: those
+  // two only ever know where `claude` was launched. Trust it only while it still exists on disk,
+  // so a resume never drops into a directory that has since been deleted.
+  const launchCwd = live?.cwd ?? decoded.cwd;
+  const working = scan.lastCwd && existsSync(scan.lastCwd) ? scan.lastCwd : null;
+  const cwd = working ?? launchCwd;
   return {
     id,
     name: annotation?.name ?? transcriptName,
     transcriptName,
-    cwd: live?.cwd ?? decoded.cwd,
-    cwdDecodeConfident: live ? true : decoded.confident,
+    cwd,
+    launchCwd,
+    // A directory the transcript names and that exists is not a guess, however the name decoded.
+    cwdDecodeConfident: working !== null || live !== null || decoded.confident,
     jsonlPath,
     sizeBytes: st.size,
     startedAt: live ? new Date(live.startedAt) : (scan.firstTimestamp ?? st.ctime),
@@ -80,7 +88,7 @@ function buildRecord(
     status: live ? live.status : 'inactive',
     pid: live?.pid,
     version: live?.version,
-    gitBranch: readGitBranch(live?.cwd ?? decoded.cwd) ?? undefined,
+    gitBranch: readGitBranch(cwd) ?? undefined,
     kind: kindOf(scan.entrypoint),
     entrypoint: scan.entrypoint ?? undefined,
     // A live session's pid file pins the real profile; otherwise fall back to the scan root.

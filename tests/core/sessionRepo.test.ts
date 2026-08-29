@@ -67,6 +67,32 @@ describe('listSessions', () => {
     expect(human.every(r => r.kind === 'interactive')).toBe(true);
   });
 
+  it('lists where the work happened, not where claude was launched', async () => {
+    // Claude Code stamps `cwd` on every record and it follows the session as it moves; the
+    // project directory name only ever encodes the launch directory.
+    const worked = mkdtempSync(join(tmpdir(), 'agentctl-worked-'));
+    const encoded = cwd.replaceAll('/', '-');
+    writeFileSync(join(home, 'projects', encoded, 'dddddddd-dddd-dddd-dddd-dddddddddddd.jsonl'),
+      `{"type":"user","cwd":${JSON.stringify(cwd)},"timestamp":1700000030000,"message":{"role":"user","content":"moved session"}}\n`
+      + `{"type":"user","cwd":${JSON.stringify(worked)},"timestamp":1700000031000,"message":{"role":"user","content":"later"}}\n`);
+
+    const rec = (await listSessions()).find(r => r.name === 'moved session')!;
+    expect(rec.cwd).toBe(worked);
+    expect(rec.launchCwd).toBe(cwd);
+    expect(rec.cwdDecodeConfident).toBe(true);
+    rmSync(worked, { recursive: true, force: true });
+  });
+
+  it('falls back to the launch directory when the recorded one is gone', async () => {
+    const encoded = cwd.replaceAll('/', '-');
+    writeFileSync(join(home, 'projects', encoded, 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee.jsonl'),
+      `{"type":"user","cwd":"/no/such/place","timestamp":1700000040000,"message":{"role":"user","content":"dead cwd"}}\n`);
+
+    const rec = (await listSessions()).find(r => r.name === 'dead cwd')!;
+    expect(rec.cwd).toBe(cwd);
+    expect(rec.launchCwd).toBe(cwd);
+  });
+
   it('limits and sorts by name', async () => {
     const records = await listSessions({ sortBy: 'name', limit: 1 });
     expect(records).toHaveLength(1);

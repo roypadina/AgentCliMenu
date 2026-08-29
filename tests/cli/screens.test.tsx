@@ -19,7 +19,7 @@ vi.mock('ink', async (orig) => {
 vi.mock('../../src/cli/router.js', () => ({ setScreenResult: vi.fn() }));
 
 const session = (id: string, name: string): SessionRecord => ({
-  id, name, transcriptName: name, cwd: '/tmp', cwdDecodeConfident: true, kind: 'interactive' as const, jsonlPath: '/x.jsonl', sizeBytes: 0,
+  id, name, transcriptName: name, cwd: '/tmp', launchCwd: '/tmp', cwdDecodeConfident: true, kind: 'interactive' as const, jsonlPath: '/x.jsonl', sizeBytes: 0,
   startedAt: new Date(), lastUpdatedAt: new Date(), active: false, status: 'inactive',
 });
 

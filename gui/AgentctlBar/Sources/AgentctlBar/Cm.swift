@@ -20,6 +20,8 @@ struct Tool: Codable, Identifiable {
 }
 struct Session: Codable, Identifiable {
     let id: String; let name: String; let cwd: String; let status: String
+    /// Where `claude` was launched, when that differs from where the work happened.
+    let launchCwd: String?
     let active: Bool; let gitBranch: String?; let cwdConfident: Bool; let lastUpdatedAt: String
     let startedAt: String?
     // User annotations. Optional so an older CLI (which does not emit them) still decodes.

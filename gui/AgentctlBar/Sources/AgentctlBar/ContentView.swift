@@ -481,6 +481,9 @@ struct ContentView: View {
                         if let b = s.gitBranch { Text("⎇ \(b)").font(.caption2).foregroundColor(.purple) }
                         if !s.cwdConfident { Text("⚠ cwd").font(.caption2).foregroundColor(.orange) }
                     }
+                    if let launched = s.launchCwd, launched != s.cwd {
+                        Text("launched in \(tilde(launched))").font(.caption2).foregroundColor(.secondary)
+                    }
                     // Only surfaced on machines that actually have more than one Claude account.
                     if profiles.count > 1, let acct = profileOverride?.account ?? s.account {
                         HStack(spacing: 4) {

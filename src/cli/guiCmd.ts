@@ -104,7 +104,7 @@ export function registerGuiCommands(program: Command): void {
       // views is instant. Hidden/deleted are listing preferences; transcripts are untouched.
       const records = await listSessions({ view: 'all' });
       console.log(JSON.stringify(records.map((r) => ({
-        id: r.id, name: r.name, cwd: r.cwd, status: r.status, active: r.active,
+        id: r.id, name: r.name, cwd: r.cwd, launchCwd: r.launchCwd, status: r.status, active: r.active,
         gitBranch: r.gitBranch ?? null, cwdConfident: r.cwdDecodeConfident,
         kind: r.kind, entrypoint: r.entrypoint ?? null,
         lastUpdatedAt: r.lastUpdatedAt.toISOString(),
