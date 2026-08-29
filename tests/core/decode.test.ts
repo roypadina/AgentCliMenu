@@ -10,6 +10,9 @@ describe('decodeCwd', () => {
     root = mkdtempSync(join(tmpdir(), 'agentctl-decode-'));
     mkdirSync(join(root, 'Users/roy/Code/Work/My-App-Repo/sub'), { recursive: true });
     mkdirSync(join(root, 'Users/roy/Code/plain'), { recursive: true });
+    // Claude Code encodes `.` as `-` too, so a worktree under a dot-directory looks identical
+    // to a path separator. This is the case that used to be permanently "cwd uncertain".
+    mkdirSync(join(root, 'Users/roy/Code/Reeco/.bo-worktrees/bo-guides-poc'), { recursive: true });
   });
   afterAll(() => { rmSync(root, { recursive: true, force: true }); });
 
@@ -38,5 +41,19 @@ describe('decodeCwd', () => {
     const r = decodeCwd('-nonexistent-path-xyz');
     expect(r.cwd).toBe('/nonexistent/path/xyz');
     expect(r.confident).toBe(false);
+  });
+
+  it('resolves directories whose name contains a dot', () => {
+    const enc = root.replaceAll('/', '-') + '-Users-roy-Code-Reeco--bo-worktrees-bo-guides-poc';
+    const r = decodeCwd(enc);
+    expect(r.cwd).toBe(join(root, 'Users/roy/Code/Reeco/.bo-worktrees/bo-guides-poc'));
+    expect(r.confident).toBe(true);
+  });
+
+  it('sees a directory created after the first decode (no stale listing cache)', () => {
+    const enc = root.replaceAll('/', '-') + '-Users-roy-Code-later';
+    expect(decodeCwd(enc).confident).toBe(false);
+    mkdirSync(join(root, 'Users/roy/Code/later'), { recursive: true });
+    expect(decodeCwd(enc).confident).toBe(true);
   });
 });
