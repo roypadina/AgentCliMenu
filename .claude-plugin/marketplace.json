@@ -1,0 +1,14 @@
+{
+  "name": "agent-cli-menu",
+  "owner": {
+    "name": "Roy Padina",
+    "url": "https://github.com/roypadina"
+  },
+  "plugins": [
+    {
+      "name": "acm-sessions",
+      "source": "./plugins/acm-sessions",
+      "description": "Name, note, flag and set reminders on Claude Code sessions from inside the session — visible in the Agent CLI Menu picker."
+    }
+  ]
+}
