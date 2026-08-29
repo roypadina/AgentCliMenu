@@ -140,6 +140,25 @@ enum Cm {
     }
 
     static func launch(dir: String, tool: String) { runVoid("launch --dir '\(esc(dir))' --tool '\(esc(tool))'") }
+
+    /// Update one session annotation. Only the fields you pass are touched; an empty string clears
+    /// a field. `flags` replaces the whole set. `completion` runs on the main thread so the caller
+    /// can reload without racing the write.
+    static func annotate(
+        id: String, name: String? = nil, note: String? = nil, flags: [String]? = nil,
+        done: Bool? = nil, remind: String? = nil, completion: (() -> Void)? = nil
+    ) {
+        var args = "annotate --id '\(esc(id))'"
+        if let name { args += " --name '\(esc(name))'" }
+        if let note { args += " --note '\(esc(note))'" }
+        if let flags { args += " --flags '\(esc(flags.joined(separator: ",")))'" }
+        if let done { args += " --done \(done)" }
+        if let remind { args += " --remind '\(esc(remind))'" }
+        DispatchQueue.global().async {
+            do { _ = try run(args) } catch { postFailure(error) }
+            if let completion { DispatchQueue.main.async(execute: completion) }
+        }
+    }
     static func resume(id: String) { runVoid("resume --id '\(esc(id))'") }
     static func configGet() async throws -> ConfigDTO { try await runAsync("config-get", ConfigDTO.self) }
 

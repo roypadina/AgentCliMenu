@@ -46,6 +46,12 @@ struct ContentView: View {
     @State private var recapLoadingId: String?
     @State private var recapError: [String: String] = [:]
 
+    // ── annotation editor (details pane): fields belong to `annEditingId` ──
+    @State private var annEditingId: String?
+    @State private var annName = ""
+    @State private var annFlags = ""
+    @State private var annNote = ""
+
     private var query: String { search.trimmingCharacters(in: .whitespaces) }
 
     private static let isoFrac: ISO8601DateFormatter = {
@@ -104,6 +110,9 @@ struct ContentView: View {
         .frame(minWidth: 380, idealWidth: 460, maxWidth: .infinity, minHeight: 420, idealHeight: 560, maxHeight: .infinity)
         .task { await loadAll() }
         .onChange(of: search) { _ in selection = 0; confirmResumeId = nil }
+        // Keep the annotation editor pointed at whatever row is actually selected.
+        .onChange(of: selectedSession?.id) { id in loadAnnotationFields(id: id) }
+        .onAppear { loadAnnotationFields(id: selectedSession?.id) }
         .onChange(of: tab) { _ in selection = 0; confirmResumeId = nil }
         .onReceive(NotificationCenter.default.publisher(for: .cmReload)) { _ in Task { await reload() } }
         .sheet(isPresented: $showSettings) { SettingsView(onSaved: { Task { await reload() } }) }
@@ -223,6 +232,68 @@ struct ContentView: View {
         }
     }
 
+    /// Name / flags / note / done / reminder, editable in place. Each field commits on ⏎; the
+    /// buttons commit immediately. Same store the TUI and the `acm` commands write.
+    @ViewBuilder
+    private func annotationEditor(_ s: Session) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Text("Yours").font(.caption).bold()
+                if let at = s.remindAt {
+                    Label(s.isReminderDue ? "due \(fmtIso(at))" : "remind \(fmtIso(at))", systemImage: "bell.fill")
+                        .font(.caption2).foregroundColor(s.isReminderDue ? .red : .purple)
+                }
+                Spacer()
+                Button {
+                    Cm.annotate(id: s.id, done: !s.isDone) { Task { await refreshSessions() } }
+                } label: {
+                    Label(s.isDone ? "Done" : "Mark done",
+                          systemImage: s.isDone ? "checkmark.circle.fill" : "circle")
+                }
+                .font(.caption2).buttonStyle(.borderless)
+                .foregroundColor(s.isDone ? .green : .secondary)
+                .help(s.isDone ? "Reopen this session" : "Mark this session finished")
+
+                Menu {
+                    ForEach(["1h", "3h", "tomorrow 9am", "3d"], id: \.self) { w in
+                        Button("in \(w)") { Cm.annotate(id: s.id, remind: w) { Task { await refreshSessions() } } }
+                    }
+                    if s.remindAt != nil {
+                        Divider()
+                        Button("Clear reminder") { Cm.annotate(id: s.id, remind: "") { Task { await refreshSessions() } } }
+                    }
+                } label: {
+                    Label("Remind", systemImage: "bell")
+                }
+                .font(.caption2).menuStyle(.borderlessButton).fixedSize()
+                .help("Flag this session in the picker at a chosen time")
+            }
+            TextField("name this session", text: $annName)
+                .textFieldStyle(.roundedBorder).font(.caption2)
+                .onSubmit { Cm.annotate(id: s.id, name: annName) { Task { await refreshSessions() } } }
+            TextField("flags, comma separated (todo, later…)", text: $annFlags)
+                .textFieldStyle(.roundedBorder).font(.caption2)
+                .onSubmit {
+                    let list = annFlags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                    Cm.annotate(id: s.id, flags: list.filter { !$0.isEmpty }) { Task { await refreshSessions() } }
+                }
+            // single-line: TextField(text:axis:) and lineLimit(range) are macOS 13+, this app targets 12
+            TextField("note", text: $annNote)
+                .textFieldStyle(.roundedBorder).font(.caption2)
+                .onSubmit { Cm.annotate(id: s.id, note: annNote) { Task { await refreshSessions() } } }
+        }
+    }
+
+    /// Pull a session's annotation into the editor fields — once per session, so it never
+    /// overwrites what is being typed. Always called with the row that is actually selected.
+    private func loadAnnotationFields(id: String?) {
+        guard let id, annEditingId != id, let s = sessions.first(where: { $0.id == id }) else { return }
+        annEditingId = id
+        annName = s.name
+        annFlags = s.tags.joined(separator: ", ")
+        annNote = s.note ?? ""
+    }
+
     /// Compact annotation markers: done · flagged · noted · reminder (red once due).
     @ViewBuilder
     private func annotationBadges(_ s: Session) -> some View {
@@ -294,26 +365,8 @@ struct ContentView: View {
                     Text("started    \(fmtIso(s.startedAt))").font(.caption2).foregroundColor(.secondary)
                     Text("last used  \(fmtIso(s.lastUpdatedAt))").font(.caption2).foregroundColor(.secondary)
                     Text(tilde(s.cwd)).font(.caption2).foregroundColor(.secondary).lineLimit(2).textSelection(.enabled)
-                    if s.hasAnnotation {
-                        HStack(spacing: 6) {
-                            if s.isDone {
-                                Label("done", systemImage: "checkmark.circle.fill")
-                                    .font(.caption2).foregroundColor(.green)
-                            }
-                            ForEach(s.tags, id: \.self) { t in
-                                Text("#\(t)").font(.caption2).foregroundColor(.yellow)
-                            }
-                            if let at = s.remindAt {
-                                Label(s.isReminderDue ? "due \(fmtIso(at))" : "remind \(fmtIso(at))",
-                                      systemImage: "bell.fill")
-                                    .font(.caption2).foregroundColor(s.isReminderDue ? .red : .purple)
-                            }
-                        }
-                        if let n = s.note {
-                            Text(n).font(.caption2).foregroundColor(.cyan).lineLimit(3).textSelection(.enabled)
-                        }
-                    }
                 }
+                annotationEditor(s)
                 // ── recap ──
                 HStack(spacing: 6) {
                     Text("Recap").font(.caption).bold()
@@ -492,6 +545,13 @@ struct ContentView: View {
         guard !sessionsLoaded else { return }
         loading = true; defer { loading = false }
         do { sessions = try await Cm.sessions(); sessionsLoaded = true } catch { errorText = describe(error) }
+    }
+    /// Re-read sessions after a write, bypassing the once-only `sessionsLoaded` guard.
+    private func refreshSessions() async {
+        do {
+            sessions = try await Cm.sessions()
+            annEditingId = nil   // let the editor re-read the fields it just wrote
+        } catch { errorText = describe(error) }
     }
     private func reload() async {
         errorText = nil; sessions = []; sessionsLoaded = false; peekCache = [:]; peekFailed = []

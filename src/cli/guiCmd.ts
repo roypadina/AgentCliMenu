@@ -13,7 +13,10 @@ import { getRecap, readCachedRecap } from '../core/recap.js';
 import { planTerminal, resolveCustomTemplate } from '../core/terminalLaunch.js';
 import { setGuiTerminal } from './config.js';
 import { shellQuote } from './launch.js';
-import { isReminderDue } from '../core/annotations.js';
+import {
+  isReminderDue, isValidSessionId, normalizeFlag, parseWhen, readAnnotation, writeAnnotation,
+  type AnnotationPatch,
+} from '../core/annotations.js';
 import type { AgentCliMenuConfig } from '../core/config/types.js';
 
 function readStdin(): Promise<string> {
@@ -153,6 +156,46 @@ export function registerGuiCommands(program: Command): void {
       const profile = s.configDir ? `CLAUDE_CONFIG_DIR=${shellQuote(s.configDir)} ` : '';
       openSession(`${profile}${bin} --resume ${s.id} --dangerously-skip-permissions`, s.cwd, config);
       console.log(JSON.stringify({ ok: true, id: s.id, cwd: s.cwd }));
+    });
+
+  gui.command('annotate')
+    .description('update one session annotation (name/note/flags/done/reminder)')
+    .requiredOption('--id <id>')
+    .option('--name <name>', 'set the name override ("" clears it)')
+    .option('--note <note>', 'set the note ("" clears it)')
+    .option('--flags <csv>', 'replace the whole flag set (comma separated, "" clears)')
+    .option('--done <bool>', 'true|false')
+    .option('--remind <when>', '2h | tomorrow 9am | ISO ("" clears)')
+    .action((opts: { id: string; name?: string; note?: string; flags?: string; done?: string; remind?: string }) => {
+      if (!isValidSessionId(opts.id)) {
+        console.log(JSON.stringify({ ok: false, error: 'invalid id' }));
+        process.exit(3);
+      }
+      const patch: AnnotationPatch = {};
+      if (opts.name !== undefined) patch.name = opts.name.trim() || null;
+      if (opts.note !== undefined) patch.note = opts.note.trim() || null;
+      if (opts.done !== undefined) patch.done = opts.done === 'true';
+      if (opts.remind !== undefined) {
+        const raw = opts.remind.trim();
+        if (!raw) patch.remindAt = null;
+        else {
+          const at = parseWhen(raw);
+          if (!at) {
+            console.log(JSON.stringify({ ok: false, error: `unrecognised time: ${raw}` }));
+            process.exit(4);
+          }
+          patch.remindAt = at.toISOString();
+        }
+      }
+      if (opts.flags !== undefined) {
+        // The GUI sends the whole set; turn it into the add/remove the store speaks.
+        const want = opts.flags.split(',').map(normalizeFlag).filter(Boolean);
+        const have = readAnnotation(opts.id)?.flags ?? [];
+        patch.addFlags = want.filter((f) => !have.includes(f));
+        patch.removeFlags = have.filter((f) => !want.includes(f));
+      }
+      const a = writeAnnotation(opts.id, patch);
+      console.log(JSON.stringify({ ok: true, annotation: a }));
     });
 
   gui.command('peek')
