@@ -663,11 +663,16 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
             <>
               <Text dimColor>↑/↓ </Text><Text color="white">move</Text>
               <Text dimColor> · ⏎ </Text><Text color="white">resume</Text>
-              <Text dimColor> · r </Text><Text color="white">recap</Text>
-              <Text dimColor> · p </Text><Text color="white">peek</Text>
               <Text dimColor> · / </Text><Text color="white">filter</Text>
               <Text dimColor> · s </Text><Text color="white">search</Text>
-              <Text dimColor> · e/n/f/t/d </Text><Text color="white">annotate</Text>
+              {/* A narrow terminal shrinks these cells into unreadable stubs — `?` has the full map. */}
+              {cols >= 100 ? (
+                <>
+                  <Text dimColor> · r </Text><Text color="white">recap</Text>
+                  <Text dimColor> · p </Text><Text color="white">peek</Text>
+                  <Text dimColor> · e/n/f/t/d </Text><Text color="white">annotate</Text>
+                </>
+              ) : null}
               <Text dimColor> · ? </Text><Text color="white">help</Text>
               <Text dimColor> · q </Text><Text color="white">quit</Text>
             </>
