@@ -86,6 +86,11 @@ export function registerAnnotateCommands(program: Command) {
   session(program.command('name [words...]'))
     .description('set a session display name (overrides the transcript title; rename as often as you like)')
     .option('--clear', 'remove the name override')
+    .addHelpText('after', `
+Stored beside the session, never written into the transcript: Claude Code
+re-flushes its own cached title after almost every turn, so a rename appended to
+the .jsonl is silently reverted. --clear puts the transcript title back.
+`)
     .action(async (words: string[], opts) => {
       const text = words.join(' ').trim();
       if (!text && !opts.clear) { console.error('give a name, or --clear'); process.exit(2); }
@@ -109,6 +114,11 @@ export function registerAnnotateCommands(program: Command) {
   session(program.command('flag [flags...]'))
     .description('tag a session (e.g. todo, later, bug) so it stands out in the menu')
     .option('--remove', 'remove the given flags instead of adding them')
+    .addHelpText('after', `
+Flags are short states for you — todo, later, blocked — lowercased and
+dash-joined. The row shows ⚑ and the menu's / filter matches them.
+Use \`label\` for what the session is about (a Jira key, a repo, a topic).
+`)
     .action(async (flags: string[], opts) => {
       if (flags.length === 0) { console.error('give at least one flag'); process.exit(2); }
       await apply(opts.session, opts.remove ? { removeFlags: flags } : { addFlags: flags }, opts.json);
@@ -124,6 +134,21 @@ export function registerAnnotateCommands(program: Command) {
   session(program.command('remind [when...]'))
     .description('set a reminder: 2h, 30m, 3d, tomorrow, "tomorrow 9am", 17:00, or an ISO date')
     .option('--clear', 'drop the reminder')
+    .addHelpText('after', `
+When it comes due nothing is pushed at you — it surfaces where you already look:
+  · the row's ◆ turns red in the Resume menu, and the header counts "◆ N due"
+  · \`agentctl annotations --due\` lists everything that has come due
+  · the agentctl-sessions plugin tells a session, at start, that it is due
+Marking the session done silences it. Use \`due\` for when the WORK is due.
+
+Formats   30m · 2h · 3d · 1w · tomorrow · "tomorrow 9am" · 17:00 · 2026-09-01T09:00
+A bare clock time that has already passed today rolls to tomorrow. A bare number
+is rejected — "45" is a forgotten unit, not the year 2045.
+
+  agentctl remind 2h                     the session you are in
+  agentctl remind tomorrow 9am -s 3aa518bf
+  agentctl remind --clear
+`)
     .action(async (when: string[], opts) => {
       if (opts.clear) { await apply(opts.session, { remindAt: null }, opts.json); return; }
       const raw = when.join(' ').trim();
@@ -135,6 +160,13 @@ export function registerAnnotateCommands(program: Command) {
   session(program.command('hide [ids...]'))
     .description('keep sessions out of the default list (they stay in `--hidden`; transcripts untouched)')
     .option('--undo', 'show them in the default list again')
+    .addHelpText('after', `
+A listing preference, nothing more: the transcript is untouched, nothing leaves
+~/.claude, and a hidden session still resumes if you name its id. \`v\` in the menu
+shows the hidden ones; \`agentctl ls --hidden\` does the same from here.
+Takes several ids at once. In zsh, split a variable with \${=IDS} or the whole
+list arrives as one argument.
+`)
     .action(async (ids: string[], opts) => {
       await applyMany(ids, opts.session, { hidden: !opts.undo }, opts.json);
     });
@@ -142,6 +174,13 @@ export function registerAnnotateCommands(program: Command) {
   session(program.command('delete [ids...]'))
     .description('keep sessions out of every list (recover with --undo; nothing is removed from ~/.claude)')
     .option('--undo', 'restore them')
+    .addHelpText('after', `
+Like \`hide\`, but out of every list the menu can show — which is what makes it
+safe to press. Also just a listing preference: nothing is removed from ~/.claude
+and the session still resumes by id.
+Recover with \`agentctl delete --undo <id>\`, \`agentctl ls --deleted\` to find it,
+or the menu-bar app's Deleted view. Deliberately not reachable from the menu.
+`)
     .action(async (ids: string[], opts) => {
       await applyMany(ids, opts.session, { deleted: !opts.undo }, opts.json);
     });
@@ -150,6 +189,16 @@ export function registerAnnotateCommands(program: Command) {
     .description('tag a session with what it relates to — a Jira key, a repo, a topic (searchable)')
     .option('--remove', 'remove the given labels instead of adding them')
     .option('--auto', 'add any issue key found in the current git branch (e.g. RD-12345)')
+    .addHelpText('after', `
+Labels say what a session is ABOUT — a ticket, a repo, a topic — and keep their
+case, so RD-12345 reads back as you typed it. The menu's / filter matches them,
+so one ticket key finds every session on that ticket.
+
+  agentctl label RD-12345 catalog
+  agentctl label --auto                  take the issue key out of the branch name
+  agentctl label --remove catalog
+Use \`flag\` instead for short states you set for yourself (todo, later, blocked).
+`)
     .action(async (labels: string[], opts) => {
       const all = [...labels];
       if (opts.auto) {
@@ -167,6 +216,11 @@ export function registerAnnotateCommands(program: Command) {
   session(program.command('due [when...]'))
     .description('set when the work is due: 2h, 3d, tomorrow, "friday 17:00", or an ISO date')
     .option('--clear', 'drop the due date')
+    .addHelpText('after', `
+The deadline for the work itself, as opposed to \`remind\`, which is a nudge to
+look at the session. Shown as ✱, red once the date has passed, and listed by
+\`agentctl annotations --due\`. Same time formats as \`remind\`; done clears it.
+`)
     .action(async (when: string[], opts) => {
       if (opts.clear) { await apply(opts.session, { dueAt: null }, opts.json); return; }
       const raw = when.join(' ').trim();
@@ -180,6 +234,10 @@ export function registerAnnotateCommands(program: Command) {
     .description('list every annotated session')
     .option('--json')
     .option('--due', 'only sessions whose reminder has come due or whose due date has passed')
+    .addHelpText('after', `
+  agentctl annotations --due             what needs you now
+  agentctl annotations --label RD-12345  every session on one ticket
+`)
     .option('--label <label>', 'only sessions carrying this label')
     .action(async (opts: { json?: boolean; due?: boolean; label?: string }) => {
       const all = [...readAllAnnotations().values()]

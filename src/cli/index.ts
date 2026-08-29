@@ -39,6 +39,34 @@ export function buildProgram(): Command {
     .description('Agentctl — start a new Claude/Codex session in a project, or search + resume an existing one')
     .version(PKG_VERSION)
     .option('-r, --resume', 'open the Resume menu (default opens New)')
+    .addHelpText('after', `
+Two menus
+  agentctl                 New — pick a project directory, start a session there
+  agentctl -r              Resume — search every past session and pick one up
+  ? inside either menu     the full keymap for that screen
+
+Annotate a session
+  Run these INSIDE a Claude session and they target that session. From anywhere
+  else add -s <id-or-prefix>.
+  agentctl name "billing spike"      rename it (as often as you like)
+  agentctl note "waiting on Dor"     a note, shown under the row
+  agentctl label RD-12345            what it relates to — Jira key, repo, topic
+  agentctl flag todo later           short markers you set for yourself
+  agentctl remind 2h                 nudge me at...   (see \`remind --help\`)
+  agentctl due friday 17:00          the work is due at...
+  agentctl done                      finished; silences its reminder
+  agentctl annotations --due         everything that has come due
+
+Tidy the list
+  agentctl hide <id>...              out of the default list, kept in --hidden
+  agentctl delete <id>...            out of every list; --undo restores it
+  Neither touches the transcript. Nothing is ever removed from ~/.claude, and a
+  hidden or deleted session still resumes if you name its id.
+
+Where things live
+  ~/.config/agentctl/config.toml           groups, tools, terminal, hotkey
+  ~/.config/agentctl/annotations/<id>.json one small file per annotated session
+`)
     .action(async (opts: { resume?: boolean }) => {
       const { runApp } = await import('./router.js');
       await runApp(opts.resume ? 'resume' : 'new');
@@ -46,7 +74,8 @@ export function buildProgram(): Command {
 
   program
     .command('ls')
-    .option('--cwd <path>')
+    .description('list sessions as a table (--json for the raw records)')
+    .option('--cwd <path>', 'only sessions whose working directory is this')
     .option('--active')
     .option('--json')
     .option('--sort <key>', 'updated|started|name', 'updated')
@@ -75,7 +104,8 @@ export function buildProgram(): Command {
 
   program
     .command('peek <id>')
-    .option('--full')
+    .description('print a session transcript (tail by default)')
+    .option('--full', 'print the whole transcript instead of the tail')
     .option('--head <n>', '', v => parseInt(v, 10))
     .option('--tail <n>', '', v => parseInt(v, 10))
     .action(async (id: string, opts) => {
@@ -86,7 +116,8 @@ export function buildProgram(): Command {
   // resume with an id → resume that session; without an id → open the Resume menu.
   program
     .command('resume [id]')
-    .option('--yes')
+    .description('resume a session by id, or open the Resume menu with no id')
+    .option('--yes', 'skip the confirmation when the working directory is a guess')
     .option('--cwd <path>')
     .option('-p, --profile <name>', 'Claude account to resume under: an email, a home path, or a profile name')
     .action(async (id: string | undefined, opts) => {
@@ -131,6 +162,7 @@ export function buildProgram(): Command {
 
   program
     .command('path <id>')
+    .description('print the transcript .jsonl path for a session')
     .action(async (id: string) => { const s = await resolveId(id); console.log(s.jsonlPath); });
 
   program

@@ -700,31 +700,45 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
       {mode === 'help' ? (
         <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
           <Text bold color="cyan">keys — Resume</Text>
-          <HelpRow k="↑/↓  j/k" v="move selection" />
-          <HelpRow k="pgup/pgdn" v="page through the list" />
-          <HelpRow k="g / G" v="jump to first / last" />
-          <HelpRow k="enter" v="resume the selected session" />
-          <HelpRow k="r" v="recap the session (claude -p · haiku, cached)" />
-          <HelpRow k="p" v="peek transcript (↑/↓ · g/G · pgup/pgdn to scroll)" />
-          <HelpRow k="/" v="fuzzy-filter the list" />
-          <HelpRow k="s" v="full-text search across all transcripts" />
-          <HelpRow k="e / n" v="edit name / note" />
-          <HelpRow k="f / l" v="flags / labels (Jira key, repo, topic)" />
-          <HelpRow k="t / u" v="reminder / due date" />
-          <HelpRow k="" v="(l pre-fills the issue key from the branch)" />
-          <HelpRow k="d / H" v="toggle done / show-hide done sessions" />
-          <HelpRow k="T" v="cycle: everything → interactive only → tool runs only" />
-          <HelpRow k="space" v="mark a session — h/x/d then act on every marked one" />
-          <HelpRow k="c" v="copy `agentctl resume <id>` to the clipboard" />
-          {multiProfile ? <HelpRow k="a" v="cycle which Claude account the resume uses" /> : null}
-          <HelpRow k="h" v="hide this session — v shows hidden ones" />
-          <HelpRow k="x" v="delete this session (press twice) — undo from the CLI or the app" />
-          <HelpRow k="v" v="show hidden sessions (deleted are CLI/app only)" />
-          <HelpRow k="^r" v="refresh sessions" />
-          <HelpRow k="⇥ tab" v="switch to New" />
-          <HelpRow k="q" v="quit" />
-          <Box marginTop={1}><Text dimColor>▸ = started by a tool (claude -p, the SDK, MCP), not typed by you</Text></Box>
-          <Box><Text dimColor>⚠ = decoded cwd uncertain — Enter twice to resume anyway.  press any key to close</Text></Box>
+          <HelpSection t="move & open" />
+          <HelpRow k="↑/↓  j/k" v="move the selection" />
+          <HelpRow k="pgup/pgdn" v="page through the list   ·   g / G  jump to first / last" />
+          <HelpRow k="⏎" v="resume the highlighted session where it left off" />
+          <HelpRow k="p" v="peek its transcript (↑/↓ · g/G · pgup/pgdn to scroll)" />
+          <HelpRow k="r" v="recap what it was about — claude -p, haiku, cached" />
+          <HelpRow k="c" v="copy `agentctl resume <id>` — paste it in any terminal" />
+          <HelpSection t="find" />
+          <HelpRow k="/" v="fuzzy-filter on name, path, id, labels, flags, note" />
+          <HelpRow k="s" v="full-text search inside every transcript" />
+          <HelpRow k="H" v="show / hide the sessions marked done" />
+          <HelpRow k="T" v="tool runs: everything → interactive only → tool runs only" />
+          <HelpRow k="v" v="show the hidden sessions (deleted are CLI/app only)" />
+          <HelpSection t="annotate the highlighted session" />
+          <HelpRow k="e / n" v="name it / attach a note" />
+          <HelpRow k="l / f" v="labels — Jira key, repo, topic (l pre-fills it from the branch) / flags" />
+          <HelpRow k="t / u" v="remind me at… / work is due at…   2h · 3d · tomorrow 9am · 17:00" />
+          <HelpRow k="d" v="done — greys it out and silences its reminder" />
+          <HelpRow k="space" v="mark rows; h, x and d then act on every marked one" />
+          <HelpRow k="h / x" v="hide / delete (twice). Listing only — the transcript is untouched" />
+          <HelpSection t="other" />
+          {multiProfile ? <HelpRow k="a" v="cycle which Claude account the resume runs under" /> : null}
+          <HelpRow k="^r  ⇥  q" v="rescan from disk   ·   switch to New   ·   quit" />
+          {rows >= 40 ? (
+            <Box marginTop={1} flexDirection="column">
+              <Box>
+                <Text color="gray">▸</Text><Text dimColor> tool run   </Text>
+                <Text color="green">✓</Text><Text dimColor> done   </Text>
+                <Text color="yellow">⚑</Text><Text dimColor> flagged   </Text>
+                <Text color="cyan">✎</Text><Text dimColor> noted   </Text>
+                <Text color="magenta">◆</Text><Text dimColor> reminder   </Text>
+                <Text color="blue">✱</Text><Text dimColor> due date   </Text>
+                <Text color="yellow">!</Text><Text dimColor> cwd is a guess</Text>
+              </Box>
+              <Text dimColor>◆ and ✱ turn red once due. ! = the working directory could not be decoded with</Text>
+              <Text dimColor>confidence; ⏎ twice to resume there anyway.</Text>
+            </Box>
+          ) : null}
+          <Box marginTop={1}><Text dimColor>press any key to close</Text></Box>
         </Box>
       ) : null}
 
@@ -1035,6 +1049,11 @@ function DetailsPane({ s, recap, confirming, deleting, deletingCount, account, o
       ) : null}
     </Box>
   );
+}
+
+/** Section heading inside the `?` panel — the flat key list read as one long soup. */
+function HelpSection({ t }: { t: string }) {
+  return <Text bold color="yellow">{'\n'}{t}</Text>;
 }
 
 function HelpRow({ k, v }: { k: string; v: string }) {
