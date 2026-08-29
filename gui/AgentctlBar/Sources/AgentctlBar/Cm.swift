@@ -18,17 +18,36 @@ struct Tool: Codable, Identifiable {
     let name: String; let label: String
     var id: String { name }
 }
+/// What `agentctl gui annotate` hands back — the same record the annotation store holds.
+struct Annotation: Codable {
+    let sessionId: String
+    let name: String?
+    let note: String?
+    let flags: [String]
+    let labels: [String]
+    let done: Bool
+    let hidden: Bool
+    let deleted: Bool
+    let remindAt: String?
+    let dueAt: String?
+}
+
 struct Session: Codable, Identifiable {
-    let id: String; let name: String; let cwd: String; let status: String
+    let id: String
+    /// Display name: the annotation's override when set, else `transcriptName`.
+    var name: String
+    /// The name derived from the transcript alone, kept so clearing an override can restore it.
+    let transcriptName: String?
+    let cwd: String; let status: String
     /// Where `claude` was launched, when that differs from where the work happened.
     let launchCwd: String?
     let active: Bool; let gitBranch: String?; let cwdConfident: Bool; let lastUpdatedAt: String
     let startedAt: String?
     // User annotations. Optional so an older CLI (which does not emit them) still decodes.
-    let flags: [String]?; let labels: [String]?; let note: String?; let done: Bool?
-    let remindAt: String?; let remindDue: Bool?
-    let dueAt: String?; let overdue: Bool?
-    let hidden: Bool?; let deleted: Bool?
+    var flags: [String]?; var labels: [String]?; var note: String?; var done: Bool?
+    var remindAt: String?; var remindDue: Bool?
+    var dueAt: String?; var overdue: Bool?
+    var hidden: Bool?; var deleted: Bool?
     /// "interactive" or "tool" — a tool run is one something else started (`claude -p`, the SDK,
     /// MCP), not one you sat in front of. `entrypoint` is the raw value behind it.
     let kind: String?; let entrypoint: String?
@@ -43,10 +62,37 @@ struct Session: Codable, Identifiable {
     var isHidden: Bool { hidden ?? false }
     var isDeleted: Bool { deleted ?? false }
     var isToolRun: Bool { kind == "tool" }
+
+    /// Fold a freshly written annotation into this row, so one changed session costs no re-list.
+    /// `remindDue`/`overdue` are derived rather than carried, because the CLI computed the copies
+    /// we already hold against a clock that has since moved.
+    func applying(_ a: Annotation) -> Session {
+        var s = self
+        s.name = a.name ?? transcriptName ?? name
+        s.flags = a.flags; s.labels = a.labels; s.note = a.note
+        s.done = a.done; s.hidden = a.hidden; s.deleted = a.deleted
+        s.remindAt = a.remindAt; s.dueAt = a.dueAt
+        s.remindDue = !a.done && Session.hasPassed(a.remindAt)
+        s.overdue = !a.done && Session.hasPassed(a.dueAt)
+        return s
+    }
+
+    private static func hasPassed(_ iso: String?) -> Bool {
+        guard let iso, let d = ISO8601DateFormatter.cmFractional.date(from: iso)
+            ?? ISO8601DateFormatter.cmPlain.date(from: iso) else { return false }
+        return d <= Date()
+    }
     var hasAnnotation: Bool {
         isDone || !tags.isEmpty || !tickets.isEmpty || note != nil || remindAt != nil || dueAt != nil
     }
 }
+extension ISO8601DateFormatter {
+    static let cmFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f
+    }()
+    static let cmPlain = ISO8601DateFormatter()
+}
+
 struct Profile: Codable, Identifiable {
     let home: String; let account: String; let isPrimary: Bool
     var id: String { home }
@@ -105,18 +151,33 @@ enum Cm {
         guard let cm = invocation() else { throw CmError.notFound }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-lc", "\(cm) gui \(args)"]
+        // -c, not -lc: sourcing the login profile on every call costs a round trip, and anything
+        // it echoes lands in front of the JSON and breaks the decode. `invocation()` already
+        // resolved an absolute path, so nothing here needs the profile's PATH. Same call CLAUDE.md
+        // makes for the CLI side.
+        p.arguments = ["-c", "\(cm) gui \(args)"]
         let out = Pipe(); let err = Pipe()
         p.standardOutput = out; p.standardError = err
+        // Drain stderr concurrently. Reading stdout to EOF before reaping the child deadlocks the
+        // moment the child writes more than a pipe buffer to stderr: it blocks on its own pipe,
+        // never exits, and this side waits on an EOF that never comes.
+        var errData = Data()
+        let errLock = NSLock()
+        err.fileHandleForReading.readabilityHandler = { h in
+            let chunk = h.availableData
+            guard !chunk.isEmpty else { return }
+            errLock.lock(); errData.append(chunk); errLock.unlock()
+        }
         try p.run()
         let data = out.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
+        err.fileHandleForReading.readabilityHandler = nil
+        errLock.lock(); let errText = String(data: errData, encoding: .utf8) ?? ""; errLock.unlock()
         if p.terminationStatus != 0 {
             // The reason is on stdout, not stderr: `agentctl gui` prints {ok:false,error:"…"} and
             // exits non-zero. Reading only stderr turned "unrecognised time: next tuesday" into
             // "exit 4" — the most reachable failure in the app, explained away.
-            let e = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw CmError.failed(reason(stdout: data, stderr: e, status: p.terminationStatus))
+            throw CmError.failed(reason(stdout: data, stderr: errText, status: p.terminationStatus))
         }
         return data
     }
@@ -178,13 +239,18 @@ enum Cm {
     static func launch(dir: String, tool: String) { runVoid("launch --dir '\(esc(dir))' --tool '\(esc(tool))'") }
 
     /// Update one session annotation. Only the fields you pass are touched; an empty string clears
-    /// a field. `flags` replaces the whole set. `completion` runs on the main thread so the caller
-    /// can reload without racing the write.
+    /// a field. `flags` replaces the whole set.
+    ///
+    /// `completion` receives the annotation the CLI already returns, so the caller can patch the
+    /// one row it changed. Re-listing every session instead cost a second shell round trip over
+    /// hundreds of records, and that window is what let a repeated keypress act on the row that
+    /// slid underneath the selection.
     static func annotate(
         id: String, name: String? = nil, note: String? = nil, flags: [String]? = nil,
         labels: [String]? = nil, done: Bool? = nil, hidden: Bool? = nil, deleted: Bool? = nil,
         remind: String? = nil, due: String? = nil,
-        completion: (() -> Void)? = nil
+        completion: ((Annotation?) -> Void)? = nil,
+        onFailure: (() -> Void)? = nil
     ) {
         // `--opt=value`, not `--opt value`: the shell quoting is sound either way, but commander
         // refuses a separate value that begins with `-`, and a leading dash is exactly what the
@@ -201,8 +267,17 @@ enum Cm {
         if let remind { args += " --remind='\(esc(remind))'" }
         if let due { args += " --due='\(esc(due))'" }
         DispatchQueue.global().async {
-            do { _ = try run(args) } catch { postFailure(error) }
-            if let completion { DispatchQueue.main.async(execute: completion) }
+            struct Response: Decodable { let annotation: Annotation? }
+            do {
+                let data = try run(args)
+                let a = (try? JSONDecoder().decode(Response.self, from: data))?.annotation
+                DispatchQueue.main.async { completion?(a) }
+            } catch {
+                postFailure(error)
+                // No completion on failure: it used to run regardless, so a failed write raised an
+                // alert AND reverted the field behind it, with nothing connecting the two.
+                DispatchQueue.main.async { onFailure?() }
+            }
         }
     }
     static func profiles() async throws -> [Profile] { try await runAsync("profiles", [Profile].self) }

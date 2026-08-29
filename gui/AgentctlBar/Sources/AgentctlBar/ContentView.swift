@@ -377,26 +377,26 @@ struct ContentView: View {
             TextField("name this session", text: $annName)
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .focused($annFocus, equals: .name)
-                .onSubmit { Cm.annotate(id: s.id, name: annName) { Task { await refreshSessions() } } }
+                .onSubmit { Cm.annotate(id: s.id, name: annName) { applyAnnotation(s.id, $0) } }
             TextField("labels — ticket, repo, topic (RD-12345, catalog)", text: $annLabels)
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .focused($annFocus, equals: .labels)
                 .onSubmit {
                     let list = annLabels.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-                    Cm.annotate(id: s.id, labels: list.filter { !$0.isEmpty }) { Task { await refreshSessions() } }
+                    Cm.annotate(id: s.id, labels: list.filter { !$0.isEmpty }) { applyAnnotation(s.id, $0) }
                 }
             TextField("flags, comma separated (todo, later…)", text: $annFlags)
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .focused($annFocus, equals: .flags)
                 .onSubmit {
                     let list = annFlags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-                    Cm.annotate(id: s.id, flags: list.filter { !$0.isEmpty }) { Task { await refreshSessions() } }
+                    Cm.annotate(id: s.id, flags: list.filter { !$0.isEmpty }) { applyAnnotation(s.id, $0) }
                 }
             // single-line: TextField(text:axis:) and lineLimit(range) are macOS 13+, this app targets 12
             TextField("note", text: $annNote)
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .focused($annFocus, equals: .note)
-                .onSubmit { Cm.annotate(id: s.id, note: annNote) { Task { await refreshSessions() } } }
+                .onSubmit { Cm.annotate(id: s.id, note: annNote) { applyAnnotation(s.id, $0) } }
             }
         }
     }
@@ -440,7 +440,7 @@ struct ContentView: View {
     private func doneToggle(_ s: Session) -> some View {
         Toggle("Done", isOn: Binding(
             get: { s.isDone },
-            set: { on in Cm.annotate(id: s.id, done: on) { Task { await refreshSessions() } } }
+            set: { on in Cm.annotate(id: s.id, done: on) { applyAnnotation(s.id, $0) } }
         ))
         .toggleStyle(.checkbox)
         .font(.caption)
@@ -509,8 +509,8 @@ struct ContentView: View {
     }
 
     private func setWhen(_ s: Session, _ which: AnnField, _ value: String) {
-        if which == .remind { Cm.annotate(id: s.id, remind: value) { Task { await refreshSessions() } } }
-        else { Cm.annotate(id: s.id, due: value) { Task { await refreshSessions() } } }
+        if which == .remind { Cm.annotate(id: s.id, remind: value) { applyAnnotation(s.id, $0) } }
+        else { Cm.annotate(id: s.id, due: value) { applyAnnotation(s.id, $0) } }
     }
 
     private func openCustomWhen(_ s: Session, _ which: AnnField) {
@@ -522,10 +522,10 @@ struct ContentView: View {
     private func moveToShelf(_ s: Session, _ shelf: String) {
         guard pendingWriteId == nil else { return }
         pendingWriteId = s.id
-        Cm.annotate(id: s.id, hidden: shelf == "Hidden", deleted: shelf == "Deleted") {
+        Cm.annotate(id: s.id, hidden: shelf == "Hidden", deleted: shelf == "Deleted", completion: {
             pendingWriteId = nil
-            Task { await refreshSessions() }
-        }
+            applyAnnotation(s.id, $0)
+        }, onFailure: { pendingWriteId = nil })
         // Choosing anything but Listed makes the row vanish from the view you are looking at, so
         // say where it went rather than letting it appear to have been destroyed.
         switch shelf {
@@ -666,7 +666,7 @@ struct ContentView: View {
         .accessibilityLabel("\(s.name), \(statusText(s.status)), \(tilde(s.cwd))")
         .contextMenu {
             Button(s.isDone ? "Not done" : "Done") {
-                Cm.annotate(id: s.id, done: !s.isDone) { Task { await refreshSessions() } }
+                Cm.annotate(id: s.id, done: !s.isDone) { applyAnnotation(s.id, $0) }
             }
             Divider()
             Button("Listed") { moveToShelf(s, "Listed") }
@@ -783,7 +783,10 @@ struct ContentView: View {
                     // A failed read used to be permanent — nothing cleared the id again.
                     HStack(spacing: 6) {
                         Text("Can't read this transcript.").font(.system(size: 11)).foregroundColor(.secondary)
-                        Button("Try again") { peekFailed.remove(s.id) }.font(.system(size: 11))
+                        Button("Try again") {
+                            peekFailed.remove(s.id)
+                            Task { await loadPeek() }   // .task keys on the id, which has not changed
+                        }.font(.system(size: 11))
                     }
                 } else if let turns = peekCache[s.id] {
                     if turns.isEmpty {
@@ -968,10 +971,10 @@ struct ContentView: View {
         guard pendingWriteId == nil else { return true }
         let p = patch(s)
         if p.hidden != nil || p.deleted != nil || p.done != nil { pendingWriteId = s.id }
-        Cm.annotate(id: s.id, done: p.done, hidden: p.hidden, deleted: p.deleted) {
+        Cm.annotate(id: s.id, done: p.done, hidden: p.hidden, deleted: p.deleted, completion: {
             pendingWriteId = nil
-            Task { await refreshSessions() }
-        }
+            applyAnnotation(s.id, $0)
+        }, onFailure: { pendingWriteId = nil })
         if p.hidden == true { flashNote("Hid “\(s.name)” — see it under ≣ → Hidden.") }
         if p.deleted == true { flashNote("Deleted “\(s.name)” — restore it from ≣ → Deleted.") }
         if p.hidden == false || p.deleted == false { flashNote("“\(s.name)” is back in the list.") }
@@ -1104,6 +1107,21 @@ struct ContentView: View {
         sessionsLoaded = true
     }
     /// Re-read sessions after a write, bypassing the once-only `sessionsLoaded` guard.
+    /// Fold a written annotation into the one row it changed. The CLI already returned it, so a
+    /// full re-list would be a second shell round trip over every session — and that window is
+    /// what let a repeated keypress act on the row that slid under the selection while it was
+    /// open. Falls back to a re-list only if the response could not be decoded.
+    private func applyAnnotation(_ id: String, _ a: Annotation?) {
+        guard let a else { Task { await refreshSessions() }; return }
+        let priorId = selectedSession?.id
+        if let i = sessions.firstIndex(where: { $0.id == id }) {
+            sessions[i] = sessions[i].applying(a)
+        }
+        annEditingId = nil
+        loadAnnotationFields(id: selectedSession?.id)
+        reanchor(to: priorId)
+    }
+
     private func refreshSessions() async {
         let priorId = selectedSession?.id
         do {
@@ -1146,8 +1164,15 @@ struct ContentView: View {
         loadAnnotationFields(id: selectedSession?.id)
     }
     private func describe(_ e: Error) -> String {
-        if case CmError.notFound = e { return "agentctl not found. Install it (brew or npm link)." }
+        if case CmError.notFound = e {
+            return "agentctl not found. Install it: brew install --cask roypadina/tap/agentctl"
+        }
         if case CmError.failed(let m) = e { return "agentctl error: \(m)" }
+        // The only realistic cause is an agentctl on PATH older than this app — the cask ships
+        // both together, so it takes deliberate effort. Name the fix rather than printing Swift.
+        if e is DecodingError {
+            return "The agentctl on your PATH is older than this app. Update it: brew upgrade --cask agentctl"
+        }
         return "\(e)"
     }
 }
