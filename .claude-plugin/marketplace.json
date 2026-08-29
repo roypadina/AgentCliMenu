@@ -1,5 +1,6 @@
 {
   "name": "agent-cli-menu",
+  "description": "Plugins that pair with the Agent CLI Menu session picker.",
   "owner": {
     "name": "Roy Padina",
     "url": "https://github.com/roypadina"

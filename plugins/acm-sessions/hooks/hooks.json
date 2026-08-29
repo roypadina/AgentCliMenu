@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "acm hook session-start",
+            "command": "command -v acm >/dev/null 2>&1 && acm hook session-start || exit 0",
             "timeout": 10
           }
         ]
