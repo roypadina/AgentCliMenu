@@ -77,10 +77,14 @@ struct ContentView: View {
     /// The window hosting THIS copy of the view — the popover and the detached window each have
     /// one, and a local monitor sees keys meant for either.
     @State private var hostWindow: NSWindow?
+    /// Whether the name/labels/flags/note fields are showing. The action row never collapses.
+    @State private var annExpanded = false
     /// Which of Remind / Due has its `Custom…` field open, if either.
     @State private var customWhen: AnnField?
     /// Measured width of the details pane — the action row wraps below 240pt.
     @State private var paneWidth: CGFloat = 0
+    /// Measured width of a list row; the branch drops below 340pt.
+    @State private var rowWidth: CGFloat = 0
 
     private var query: String { search.trimmingCharacters(in: .whitespaces) }
 
@@ -118,6 +122,40 @@ struct ContentView: View {
         return resumeItems[selIndex]
     }
 
+    /// Side by side only where both halves can honour their minimums. Below that the details
+    /// become a bottom drawer — the terminal menu's own geometry, and the shape that removes the
+    /// over-constrained split rather than papering over it.
+    private var resumeBody: some View {
+        GeometryReader { geo in
+            if !showPeek {
+                resumeList
+            } else if geo.size.width >= 560 {
+                HSplitView {
+                    resumeList.frame(minWidth: 300)
+                    peekPane.frame(minWidth: 300, idealWidth: 340)
+                }
+            } else {
+                VStack(spacing: 8) {
+                    resumeList.frame(minHeight: 150)
+                    Divider()
+                    peekPane.frame(height: min(max(220, geo.size.height * 0.48), 320))
+                }
+            }
+        }
+    }
+
+    /// A menu-bar app has no menu bar, so the one line of chrome that says the keyboard exists.
+    private var footerHint: some View {
+        HStack(spacing: 0) {
+            Text(tab == .new ? "⏎ open   ·   ⇧⇥ tool   ·   ⌘/ shortcuts"
+                             : showPeek ? "⏎ resume   ·   ⌘P close   ·   ⌘/ shortcuts"
+                                        : "⏎ resume   ·   ⌘P details   ·   ⌘/ shortcuts")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(.secondary)
+            Spacer(minLength: 0)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             header
@@ -127,19 +165,12 @@ struct ContentView: View {
             }
             if tab == .new {
                 newList
-            } else if showPeek {
-                // Draggable divider — drag left/right to resize the list vs the preview.
-                HSplitView {
-                    // 240 here plus the pane's own minimum used to demand 501pt inside the
-                    // popover's 380, and SwiftUI answers that by clipping below both.
-                    resumeList.frame(minWidth: 150)
-                    peekPane
-                }
             } else {
-                resumeList
+                resumeBody
             }
+            footerHint
         }
-        .padding(10)
+        .padding(12)
         .frame(minWidth: 380, idealWidth: 460, maxWidth: .infinity, minHeight: 420, idealHeight: 560, maxHeight: .infinity)
         .background(WindowReader { hostWindow = $0 })
         .task { await loadAll() }
@@ -304,6 +335,10 @@ struct ContentView: View {
             }
             .onChange(of: selection) { _ in withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(selIndex, anchor: .center) } }
             .task(id: tab) { if tab == .resume { await loadSessions() } }
+            .background(GeometryReader { g in
+                Color.clear.preference(key: RowWidthKey.self, value: g.size.width)
+            })
+            .onPreferenceChange(RowWidthKey.self) { rowWidth = $0 }
         }
     }
 
@@ -316,6 +351,8 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 4) {
             actionRow(s)
             if let field = customWhen { customWhenField(s, field) }
+            summaryLine(s)
+            if annExpanded {
             TextField("name this session", text: $annName)
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .focused($annFocus, equals: .name)
@@ -339,11 +376,33 @@ struct ContentView: View {
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .focused($annFocus, equals: .note)
                 .onSubmit { Cm.annotate(id: s.id, note: annNote) { Task { await refreshSessions() } } }
+            }
         }
         .background(GeometryReader { g in
             Color.clear.preference(key: PaneWidthKey.self, value: g.size.width)
         })
         .onPreferenceChange(PaneWidthKey.self) { paneWidth = $0 }
+    }
+
+    /// What you have already said about this session, in one line, with the way in. The fields
+    /// collapse; the actions above them never do.
+    @ViewBuilder
+    private func summaryLine(_ s: Session) -> some View {
+        HStack(spacing: 6) {
+            let bits = s.tickets.map { "#" + $0 } + s.tags.map { "⚑" + $0 }
+                + (s.note.map { ["“" + $0.replacingOccurrences(of: "\n", with: " ") + "”"] } ?? [])
+            if bits.isEmpty {
+                Text("Add a name or note").font(.system(size: 11)).foregroundColor(.secondary)
+            } else {
+                Text(bits.joined(separator: "  "))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.secondary).lineLimit(1).truncationMode(.tail)
+            }
+            Spacer(minLength: 4)
+            Button(annExpanded ? "Close" : "Edit") { annExpanded.toggle() }
+                .font(.system(size: 11)).buttonStyle(.borderless)
+                .help(annExpanded ? "Hide the fields" : "Name, labels, flags and note  (⌘E)")
+        }
     }
 
     /// Done · when · where. Wraps to two lines once the pane is too narrow to hold all three —
@@ -394,8 +453,15 @@ struct ContentView: View {
             Button("Custom…") { openCustomWhen(s, which) }
             if iso != nil { Button(isRemind ? "Clear reminder" : "Clear due date") { setWhen(s, which, "") } }
         } label: {
-            Label(whenLabel(iso, verb: isRemind ? "Remind" : "Due"),
-                  systemImage: isRemind ? "bell" : "calendar")
+            // ≥400pt: verb or value. 240–400: the value alone, or just the glyph when unset —
+            // the tooltip still carries the word, and dropping it here saves the wrap.
+            let full = paneWidth == 0 || paneWidth >= 400
+            let value = whenLabel(iso, verb: isRemind ? "Remind" : "Due")
+            if full || iso != nil {
+                Label(value, systemImage: isRemind ? "bell" : "calendar")
+            } else {
+                Image(systemName: isRemind ? "bell" : "calendar")
+            }
         }
         .font(.caption2).menuStyle(.borderlessButton).fixedSize()
         .foregroundColor(live ? .red : .secondary)
@@ -472,6 +538,7 @@ struct ContentView: View {
     private func loadAnnotationFields(id: String?) {
         guard let id, annEditingId != id, let s = sessions.first(where: { $0.id == id }) else { return }
         annEditingId = id
+        annExpanded = false
         annName = s.name
         annFlags = s.tags.joined(separator: ", ")
         annLabels = s.tickets.joined(separator: ", ")
@@ -499,40 +566,34 @@ struct ContentView: View {
         return k == "tool" ? s.isToolRun : !s.isToolRun
     }
 
-    /// Compact annotation markers: done · flagged · noted · reminder (red once due).
+    /// The same glyphs the terminal menu uses, in the same order, as one monospaced cell each —
+    /// so the clusters line up down the list like a column instead of reading as a sticker
+    /// collection. Status is the only dot and the only routinely coloured thing here; colour
+    /// inside the cluster fires only for done and for time pressure.
     @ViewBuilder
     private func annotationBadges(_ s: Session) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 0) {
             if s.isToolRun {
-                Image(systemName: "terminal").font(.caption2).foregroundColor(.secondary)
-                    .help("started by a tool, not by you" + (s.entrypoint.map { " (\($0))" } ?? ""))
+                glyph("▸", .secondary, "Started by a tool, not by you" + (s.entrypoint.map { " (\($0))" } ?? ""))
             }
-            if s.isDone {
-                Image(systemName: "checkmark.circle.fill").font(.caption2).foregroundColor(.green)
-                    .help("marked done")
-            }
-            if !s.tags.isEmpty {
-                Image(systemName: "tag.fill").font(.caption2).foregroundColor(.yellow)
-                    .help(s.tags.map { "#" + $0 }.joined(separator: " "))
-            }
-            if !s.tickets.isEmpty {
-                Image(systemName: "number").font(.caption2).foregroundColor(.blue)
-                    .help(s.tickets.joined(separator: " "))
-            }
-            if let n = s.note {
-                Image(systemName: "note.text").font(.caption2).foregroundColor(.cyan).help(n)
-            }
+            if s.isDone { glyph("✓", .green, "Done") }
+            if !s.tags.isEmpty { glyph("⚑", .secondary, s.tags.map { "#" + $0 }.joined(separator: " ")) }
+            if let n = s.note { glyph("✎", .secondary, n) }
             if s.remindAt != nil {
-                Image(systemName: "bell.fill").font(.caption2)
-                    .foregroundColor(s.isReminderDue ? .red : .purple)
-                    .help(s.isReminderDue ? "reminder due" : "reminder set")
+                glyph("◆", s.isReminderDue ? .red : .secondary, s.isReminderDue ? "Reminder due" : "Reminder set")
             }
             if s.dueAt != nil {
-                Image(systemName: "calendar").font(.caption2)
-                    .foregroundColor(s.isOverdue ? .red : .blue)
-                    .help(s.isOverdue ? "overdue" : "has a due date")
+                glyph("✱", s.isOverdue ? .red : .secondary, s.isOverdue ? "Overdue" : "Has a due date")
             }
         }
+    }
+
+    private func glyph(_ ch: String, _ color: Color, _ help: String) -> some View {
+        Text(ch)
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundColor(color)
+            .help(help)
+            .accessibilityLabel(help)
     }
 
     private func sessionRow(_ s: Session, index: Int) -> some View {
@@ -547,16 +608,27 @@ struct ContentView: View {
                         Image(systemName: "exclamationmark.triangle.fill").font(.caption2).foregroundColor(.orange)
                             .help("cwd uncertain — confirm before resuming")
                     }
-                    Text(s.name).fontWeight(sel ? .semibold : .regular).lineLimit(1)
+                    Text(s.name).font(.system(size: 13))
+                        .fontWeight(sel ? .semibold : .regular).lineLimit(1)
                         .layoutPriority(1)
                     annotationBadges(s)
-                    Spacer(minLength: 0)
-                    if let b = s.gitBranch {
-                        Text("⎇ \(b)").font(.caption2).foregroundColor(.purple)
-                            .lineLimit(1).truncationMode(.head).layoutPriority(-1)
+                    Spacer(minLength: 4)
+                    Text(age(isoMs(s.lastUpdatedAt)))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                HStack(spacing: 4) {
+                    Text(tilde(s.cwd))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
+                    if let b = s.gitBranch, rowWidth == 0 || rowWidth >= 340 {
+                        Text("· ⎇ \(b)")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.purple)
+                            .lineLimit(1).layoutPriority(-1)
                     }
                 }
-                Text(tilde(s.cwd)).font(.caption2).foregroundColor(.secondary).lineLimit(1)
                 if confirming {
                     Text("⚠ cwd uncertain — press ⏎ again to resume anyway, esc to cancel")
                         .font(.caption2).foregroundColor(.orange)
@@ -568,28 +640,71 @@ struct ContentView: View {
         .padding(.vertical, 3).padding(.horizontal, 6)
         .background(rowBackground(sel))
         .accessibilityLabel("\(s.name), \(statusText(s.status)), \(tilde(s.cwd))")
+        .contextMenu {
+            Button(s.isDone ? "Not done" : "Done") {
+                Cm.annotate(id: s.id, done: !s.isDone) { Task { await refreshSessions() } }
+            }
+            Divider()
+            Button("Listed") { moveToShelf(s, "Listed") }
+            Button("Hidden") { moveToShelf(s, "Hidden") }
+            Button("Deleted") { moveToShelf(s, "Deleted") }
+            Divider()
+            Button("Copy resume command") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString("agentctl resume \(s.id)", forType: .string)
+                copiedId = s.id
+            }
+        }
     }
 
     // ── peek pane (Resume split) ──
     private var peekPane: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let s = selectedSession {
-                // ── more info (shown on highlight, before opening) ──
-                Text(s.name).font(.callout).bold().lineLimit(2)
+                // ── identity ──
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(s.name).font(.system(size: 13, weight: .semibold)).lineLimit(2)
+                    Spacer(minLength: 4)
+                    Image(systemName: "circle.fill").font(.system(size: 7)).foregroundColor(statusColor(s.status))
+                    Text(statusText(s.status)).font(.system(size: 11)).foregroundColor(.secondary)
+                }
+                // ── facts: one machine-text plate, read as a block ──
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Image(systemName: "circle.fill").font(.system(size: 8)).foregroundColor(statusColor(s.status))
-                        Text(statusText(s.status)).font(.caption2).foregroundColor(.secondary)
-                        if let b = s.gitBranch { Text("⎇ \(b)").font(.caption2).foregroundColor(.purple) }
-                        if !s.cwdConfident { Text("⚠ cwd").font(.caption2).foregroundColor(.orange) }
+                        if let b = s.gitBranch {
+                            Text("⎇ \(b)").font(.system(size: 11, design: .monospaced)).foregroundColor(.purple)
+                        }
+                        Text(tilde(s.cwd))
+                            .font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
+                            .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                     }
                     if let launched = s.launchCwd, launched != s.cwd {
-                        Text("launched in \(tilde(launched))").font(.caption2).foregroundColor(.secondary)
+                        Text("launched in \(tilde(launched))")
+                            .font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                    HStack(spacing: 6) {
+                        Text(String(s.id.prefix(8)))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.secondary).textSelection(.enabled)
+                        Button {
+                            // `agentctl resume` restores the working directory and the account too
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString("agentctl resume \(s.id)", forType: .string)
+                            copiedId = s.id
+                        } label: {
+                            Image(systemName: copiedId == s.id ? "checkmark" : "doc.on.doc").font(.system(size: 10))
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundColor(copiedId == s.id ? .green : .secondary)
+                        .help("Copy `agentctl resume \(s.id)` — paste it in any terminal to pick this session back up")
+                        .accessibilityLabel("Copy resume command")
+                        Text(spanLine(s)).font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
                     }
                     // Only surfaced on machines that actually have more than one Claude account.
                     if profiles.count > 1, let acct = profileOverride?.account ?? s.account {
                         HStack(spacing: 4) {
-                            Text("resumes as").font(.caption2).foregroundColor(.secondary)
+                            Text("resumes as").font(.system(size: 11)).foregroundColor(.secondary)
                             Menu {
                                 Button("This session's own account") { profileOverride = nil }
                                 Divider()
@@ -597,55 +712,40 @@ struct ContentView: View {
                                     Button(p.account + (p.isPrimary ? "  (default)" : "")) { profileOverride = p }
                                 }
                             } label: {
-                                Text(acct).font(.caption2)
+                                Text(acct).font(.system(size: 11, design: .monospaced))
                             }
                             .menuStyle(.borderlessButton).fixedSize()
-                            .foregroundColor(profileOverride == nil ? .blue : .orange)
-                            .help("Which Claude account this session resumes under")
+                            .foregroundColor(profileOverride == nil ? .accentColor : .orange)
+                            .help("Which Claude account this session resumes under  (⇧⌘A)")
                         }
                     }
-                    HStack(spacing: 6) {
-                        Text(s.id).font(.system(size: 10, design: .monospaced))
-                            .foregroundColor(.secondary).textSelection(.enabled)
-                        Button {
-                            // the command to paste into another terminal — `agentctl resume`
-                            // restores the working directory and the right Claude profile
-                            let cmd = "agentctl resume \(s.id)"
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(cmd, forType: .string)
-                            copiedId = s.id
-                        } label: {
-                            Image(systemName: copiedId == s.id ? "checkmark" : "doc.on.doc")
-                                .font(.caption2)
-                        }
-                        .buttonStyle(.borderless)
-                        .foregroundColor(copiedId == s.id ? .green : .secondary)
-                        .help("Copy `agentctl resume \(s.id)` — paste it in any terminal to pick this session back up")
+                    if !s.cwdConfident {
+                        Text("! the working directory is a guess")
+                            .font(.system(size: 11)).foregroundColor(.orange)
                     }
-                    Text("started    \(fmtIso(s.startedAt))").font(.caption2).foregroundColor(.secondary)
-                    Text("last used  \(fmtIso(s.lastUpdatedAt))").font(.caption2).foregroundColor(.secondary)
-                    Text(tilde(s.cwd)).font(.caption2).foregroundColor(.secondary).lineLimit(2).textSelection(.enabled)
                 }
+                .padding(.top, 2)
                 annotationEditor(s)
                 // ── recap ──
                 HStack(spacing: 6) {
-                    Text("Recap").font(.caption).bold()
+                    Text("Recap").font(.system(size: 11, weight: .semibold)).foregroundColor(.secondary)
                     if recapLoadingId == s.id { ProgressView().controlSize(.small) }
                     Spacer()
-                    Button(recapCache[s.id] == nil ? "Generate" : "Refresh") {
+                    Button("Generate recap") {
                         generateRecap(s.id, refresh: recapCache[s.id] != nil)
                     }
-                    .font(.caption2).buttonStyle(.borderless).disabled(recapLoadingId == s.id)
-                    .help("Summarize this session with claude -p (haiku), cached")
+                    .font(.system(size: 11)).buttonStyle(.borderless).disabled(recapLoadingId == s.id)
+                    .help("Summarize this session with claude -p (haiku). Generating again replaces it.  (⌘R)")
                 }
                 if let err = recapError[s.id] {
                     Text(err).font(.caption2).foregroundColor(.red).lineLimit(3)
                 } else if let t = recapCache[s.id] {
                     Text(t).font(.caption2).foregroundColor(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 } else if recapLoadingId == s.id {
-                    Text("generating… (claude · haiku)").font(.caption2).foregroundColor(.secondary)
+                    Text("Writing a recap…").font(.system(size: 11)).foregroundColor(.secondary)
                 } else {
-                    Text("press Generate for a quick summary").font(.caption2).foregroundColor(.secondary)
+                    Text("Generate a recap to see what this session was doing.")
+                        .font(.system(size: 11)).foregroundColor(.secondary)
                 }
                 Divider()
                 // ── transcript ──
@@ -676,7 +776,7 @@ struct ContentView: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(minWidth: 200, idealWidth: 340, maxWidth: .infinity)
+        .frame(maxWidth: .infinity)
         // Debounced transcript fetch + instant cached-recap load when the selection settles.
         .task(id: selectedSession?.id) {
             await loadPeek()
@@ -816,6 +916,7 @@ struct ContentView: View {
         // Remind and Due have no standing field — a SwiftUI Menu cannot be opened from code, so
         // the key goes straight to the one thing behind it that can take typing.
         if field == .remind || field == .due { openCustomWhen(s, field); return true }
+        annExpanded = true
         // The pane may have only just been added to the hierarchy; focus after it exists.
         DispatchQueue.main.async { annFocus = field }
         return true
@@ -865,7 +966,7 @@ struct ContentView: View {
     }
     private func cancel() {
         if customWhen != nil { customWhen = nil; annFocus = nil; searchFocusToken += 1; return }
-        if annFocus != nil { annFocus = nil; searchFocusToken += 1; return }
+        if annFocus != nil { annFocus = nil; annExpanded = false; searchFocusToken += 1; return }
         if confirmResumeId != nil { confirmResumeId = nil; return }
         if !search.isEmpty { search = ""; return }
         onAction() // Esc with nothing to clear → close the popover or the detached window
@@ -890,6 +991,15 @@ struct ContentView: View {
     private func statusColor(_ s: String) -> Color { s == "busy" ? .green : s == "idle" ? .yellow : .gray }
     private func statusText(_ s: String) -> String { s == "busy" ? "busy" : s == "idle" ? "idle" : "inactive" }
     private func tilde(_ p: String) -> String { p.replacingOccurrences(of: NSHomeDirectory(), with: "~") }
+    /// ISO string → epoch ms, for `age`. Returns now on an unparseable date, which reads as "0m"
+    /// rather than throwing the row away.
+    private func isoMs(_ iso: String?) -> Double {
+        guard let iso, let d = ContentView.isoFrac.date(from: iso) ?? ContentView.isoPlain.date(from: iso) else {
+            return Date().timeIntervalSince1970 * 1000
+        }
+        return d.timeIntervalSince1970 * 1000
+    }
+
     private func age(_ ms: Double) -> String {
         let diff = Date().timeIntervalSince1970 - ms / 1000
         if diff < 3600 { return "\(Int(diff/60))m" }
@@ -898,6 +1008,16 @@ struct ContentView: View {
         return "\(Int(diff/604800))w"
     }
     /// ISO timestamp → "Jun 09 11:18  (1m ago)".
+    /// "Jun 05 13:06 → Jun 09 17:30 (2m ago)" — two timestamps read better as one span.
+    private func spanLine(_ s: Session) -> String {
+        let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX"); df.dateFormat = "MMM dd HH:mm"
+        let started = (s.startedAt.flatMap { ContentView.isoFrac.date(from: $0) ?? ContentView.isoPlain.date(from: $0) })
+            .map { df.string(from: $0) } ?? "—"
+        let last = (ContentView.isoFrac.date(from: s.lastUpdatedAt) ?? ContentView.isoPlain.date(from: s.lastUpdatedAt))
+            .map { df.string(from: $0) } ?? "—"
+        return "\(started) → \(last) (\(age(isoMs(s.lastUpdatedAt))) ago)"
+    }
+
     private func fmtIso(_ iso: String?) -> String {
         guard let iso, let d = ContentView.isoFrac.date(from: iso) ?? ContentView.isoPlain.date(from: iso) else { return "—" }
         let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX"); df.dateFormat = "MMM dd HH:mm"
@@ -990,6 +1110,11 @@ struct NewDirView: View {
 
 /// Width of the details pane, so the action row knows when to wrap. `ViewThatFits` and the
 /// `Layout` protocol are macOS 13+; this app targets 12.
+private struct RowWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 private struct PaneWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
