@@ -31,6 +31,8 @@ terminal menu (**`agent-cli-menu`**, alias **`acm`**) **and** a native macOS men
 - [Screenshots](#screenshots)
 - [Install](#install)
 - [The terminal menu](#the-terminal-menu)
+- [Names, notes, flags and reminders](#names-notes-flags-and-reminders)
+- [Several Claude accounts](#several-claude-accounts)
 - [The Mac GUI](#the-mac-gui)
 - [Configuration](#configuration)
 - [How it works](#how-it-works)
@@ -67,6 +69,8 @@ It's **local-only** — it reads `~/.claude/` and your project folders, and runs
 | 🧰 **Your tools & IDEs** | Configure any agent command (`claude`, `codex`, …) and `^`-key IDE binds (VS Code, Rider, …). |
 | 🪄 **tmux / pull / Finder / new-dir** | One-key open-in-tmux, `git pull` first, reveal in Finder, or make a new directory anywhere. |
 | 🖥️ **Native Mac GUI** | A SwiftUI menu-bar app — keyboard-driven picker, transcript preview, in-app config editor, global hotkey. |
+| 🏷️ **Names, notes, flags, reminders** | Rename any session (as often as you like), pin a note to it, tag it `todo`, mark it done, or set a reminder — from the picker, the CLI, or from inside the session itself. |
+| 👥 **Every Claude profile** | Run several accounts via `CLAUDE_CONFIG_DIR`? All of their sessions show up, live status included — and resume runs under the right profile instead of silently using the wrong account. |
 | 🤝 **Shared config** | One TOML file drives both the terminal and the GUI. Edit it by hand or in the GUI's Settings. |
 | 🔐 **No cloud, no telemetry** | Reads local files only. No accounts, no analytics, no network calls of its own. |
 
@@ -182,9 +186,58 @@ agent-cli-menu config --setup | --edit | --path         # manage the shared conf
 **New** — `↑/↓` move · type to fuzzy-filter · `↵` launch · `⇥` Resume · `⇧⇥` cycle tool · `^n` new dir ·
 `^t` tmux · `^p` pull · `^f` Finder · `^`-key IDEs · `?` full keymap · `esc` back.
 
-**Resume** — `↑/↓` (or `j/k`) move · `↵` resume · `p` peek · `r` recap · `/` fuzzy-filter · `s` full-text search ·
-`^r` refresh · `⇥` New · `?` help · `q` quit. Highlighting a row shows its full details + recap inline.
-A `⚠` marks a session whose working directory couldn't be decoded with confidence — `↵` twice to resume anyway.
+**Resume** — `↑/↓` (or `j/k`) move · `pgup/pgdn` page · `g/G` first/last · `↵` resume · `p` peek · `r` recap ·
+`/` fuzzy-filter · `s` full-text search · `^r` refresh · `⇥` New · `?` help · `q` quit.
+Annotate the highlighted session in place: `e` name · `n` note · `f` flags · `t` reminder · `d` done · `h` hide done.
+Highlighting a row shows its full details + recap inline. A `!` marks a session whose working directory
+couldn't be decoded with confidence — `↵` twice to resume anyway.
+
+## Names, notes, flags and reminders
+
+Sessions arrive named after your first prompt, which ages badly. Give them a real name — and everything
+else you'd want to remember about them:
+
+```bash
+acm name  "billing spike"     # rename it; as many times as you like
+acm note  "waiting on Dor"    # a note that shows under the row
+acm flag  todo later          # tags; the picker's filter searches them
+acm remind 2h                 # or 30m · 3d · tomorrow 9am · 17:00 · an ISO date
+acm done                      # finished (--undo reopens); h hides done sessions
+acm annotations               # everything you've annotated  (--due for what's come due)
+```
+
+Run inside a Claude session, they target **that** session — no id needed. From anywhere else, add
+`-s <id-or-prefix>`. Rows show `✓` done, `⚑` flagged, `✎` noted, `◆` reminder (red once due).
+
+It's stored in `~/.config/agentclimenu/annotations/<session-id>.json`, one small file per session,
+deliberately outside `~/.claude` — nothing here can corrupt a transcript.
+
+### From inside Claude Code
+
+The [`acm-sessions` plugin](plugins/acm-sessions) adds `/acm-name`, `/acm-note`, `/acm-flag`,
+`/acm-remind` and `/acm-done`, plus a `SessionStart` hook that hands each session its own name, note
+and flags — and asks an unnamed one to name itself once the first task is clear.
+
+```
+/plugin marketplace add roypadina/AgentCliMenu
+/plugin install acm-sessions@agent-cli-menu
+```
+
+## Several Claude accounts
+
+Claude Code keeps each account in its own `CLAUDE_CONFIG_DIR` (`~/.claude`, `~/.claude2`, …). Agent CLI
+Menu scans **all** of them, so every session is listed with the correct live status, and resuming pins
+`CLAUDE_CONFIG_DIR` to the profile that session belongs to. To *start* new sessions on a given account,
+add one tool per profile:
+
+```toml
+[[tool]]
+name  = "work"
+runs  = "CLAUDE_CONFIG_DIR=~/.claude2 claude --dangerously-skip-permissions"
+label = " ⚡ Work account "
+```
+
+`⇧⇥` cycles between them.
 
 ## The Mac GUI
 

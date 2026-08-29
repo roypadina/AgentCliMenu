@@ -3,6 +3,45 @@
 All notable changes to Agent CLI Menu are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.4.0] — 2026-08-29
+
+### Added
+
+- **Names, notes, flags, done and reminders on any session.** Rename a session as often as you like
+  (`e`), pin a note to it (`n`), tag it (`f`), set a reminder (`t`), mark it finished (`d`) and hide
+  finished ones (`h`) — or from the shell with `acm name/note/flag/remind/done/annotations`. Run
+  inside a Claude session those commands target *that* session with no id. Rows show `✓ ⚑ ✎ ◆`
+  badges (the reminder turns red once due) and the fuzzy filter searches flags and notes.
+  Everything lives in `~/.config/agentclimenu/annotations/<id>.json`, one file per session, written
+  atomically and kept outside `~/.claude` so it can never corrupt a transcript.
+- **`acm-sessions` Claude Code plugin** (`plugins/acm-sessions`) — `/acm-name`, `/acm-note`,
+  `/acm-flag`, `/acm-remind`, `/acm-done`, and a `SessionStart` hook that hands each session its own
+  name, note and flags back, reports reminders that came due, and asks an unnamed session to name
+  itself once its first task is clear.
+- **Multi-profile support.** Several Claude accounts via `CLAUDE_CONFIG_DIR` (`~/.claude`,
+  `~/.claude2`, …) are all scanned, so their sessions appear with correct live status.
+- **`±N` dirty count** on the highlighted New-screen row (#1) — one `git status` for the selection
+  only, debounced and cached, never on the scan path.
+- **`pgup`/`pgdn` and `g`/`G`** in Resume and New; `↑/↓` now works while the filter box is open.
+
+### Fixed
+
+- **Resuming used the wrong Claude account.** Resume inherited whatever `CLAUDE_CONFIG_DIR` was set,
+  so a session found under one profile could be resumed under another — and when profiles share a
+  `projects/` dir that *succeeds silently as the wrong account*. Resume now pins the profile the
+  session actually belongs to.
+- **Sessions running under a side profile showed as `inactive`.** Live status only looked in
+  `~/.claude/sessions`; every `~/.claude*` profile is scanned now.
+- **A held-down arrow scrolled one row.** ink parses only the first key of each stdin chunk, so five
+  presses arriving together moved the cursor once. The full repeat count is applied now.
+- **Full-text search rendered every hit at once**, blowing past the terminal and scrolling the header
+  away. Results are windowed, with a position counter.
+- **The list could push the header off screen** whenever a note, a recap, a prompt or the ▲/▼ hints
+  appeared. Its height is derived from what is actually on screen, and a scrollbar shows position.
+- **A long cwd shifted every column left** — ink was flex-shrinking the fixed cells.
+- **Arrow keys felt dead right after filtering** (the cursor kept a stale index), and fast typing in
+  the New filter dropped characters.
+
 ## [0.3.0] — 2026-06-09
 
 ### Added
