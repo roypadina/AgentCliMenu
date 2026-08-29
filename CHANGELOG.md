@@ -29,7 +29,7 @@ All notable changes to Agentctl are documented here. Format loosely follows
 - **Due dates** — `agentctl due "friday 17:00"`, distinct from a reminder: a due date is when the
   work is due, and the session shows overdue once it passes. `u` in the TUI, `✱` badge, red when
   overdue.
-- **A skill in the `agentctl-sessions` plugin** teaching Claude the whole toolset — to name and
+- **A skill in the [`agentctl-sessions` plugin](https://github.com/roypadina/padina-claude-code-plugins)** (which now lives in its own marketplace repo) teaching Claude the whole toolset — to name and
   label sessions unprompted, to drive every command from plain requests, and to offer to install
   `agentctl` when it is missing instead of failing quietly. Plus `/agentctl-label` and
   `/agentctl-due` commands, and a `SessionStart` hook that now reports labels, due dates and the

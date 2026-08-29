@@ -216,7 +216,7 @@ deliberately outside `~/.claude` — nothing here can corrupt a transcript.
 
 ### From inside Claude Code
 
-The [`agentctl-sessions` plugin](plugins/agentctl-sessions) gives Claude the whole toolset:
+The [`agentctl-sessions` plugin](https://github.com/roypadina/padina-claude-code-plugins) gives Claude the whole toolset:
 
 - **Slash commands** — `/agentctl-name`, `/agentctl-note`, `/agentctl-label`, `/agentctl-flag`,
   `/agentctl-remind`, `/agentctl-due`, `/agentctl-done`.
@@ -228,8 +228,8 @@ The [`agentctl-sessions` plugin](plugins/agentctl-sessions) gives Claude the who
   it offers to install it rather than failing quietly.
 
 ```
-/plugin marketplace add roypadina/Agentctl
-/plugin install agentctl-sessions@agentctl
+/plugin marketplace add roypadina/padina-claude-code-plugins
+/plugin install agentctl-sessions@padina
 ```
 
 ## Several Claude accounts
