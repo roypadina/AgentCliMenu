@@ -87,12 +87,12 @@ describe('normalizeFlag', () => {
 describe('isReminderDue', () => {
   const now = new Date('2026-08-29T12:00:00Z');
   it('is due once the timestamp passes', () => {
-    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: false, remindAt: '2026-08-29T11:00:00Z' }, now)).toBe(true);
-    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: false, remindAt: '2026-08-29T13:00:00Z' }, now)).toBe(false);
+    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: false, hidden: false, deleted: false, remindAt: '2026-08-29T11:00:00Z' }, now)).toBe(true);
+    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: false, hidden: false, deleted: false, remindAt: '2026-08-29T13:00:00Z' }, now)).toBe(false);
   });
   it('is never due for a done session or a bad timestamp', () => {
-    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: true, remindAt: '2020-01-01T00:00:00Z' }, now)).toBe(false);
-    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: false, remindAt: 'soonish' }, now)).toBe(false);
+    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: true, hidden: false, deleted: false, remindAt: '2020-01-01T00:00:00Z' }, now)).toBe(false);
+    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: false, hidden: false, deleted: false, remindAt: 'soonish' }, now)).toBe(false);
     expect(isReminderDue(undefined, now)).toBe(false);
   });
 });

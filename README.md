@@ -189,7 +189,8 @@ agentctl config --setup | --edit | --path         # manage the shared config
 **Resume** — `↑/↓` (or `j/k`) move · `pgup/pgdn` page · `g/G` first/last · `↵` resume · `p` peek · `r` recap ·
 `/` fuzzy-filter · `s` full-text search · `^r` refresh · `⇥` New · `?` help · `q` quit.
 Annotate the highlighted session in place: `e` name · `n` note · `l` labels · `f` flags · `t` reminder ·
-`u` due date · `d` done · `h` hide done. (`l` pre-fills the issue key from the branch.)
+`u` due date · `d` done. `h` hides a session, `x` deletes it (twice), `v` cycles normal → hidden →
+deleted, `H` shows/hides done ones. (`l` pre-fills the issue key from the branch.)
 Highlighting a row shows its full details + recap inline. A `!` marks a session whose working directory
 couldn't be decoded with confidence — `↵` twice to resume anyway.
 

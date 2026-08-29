@@ -23,13 +23,21 @@ struct Session: Codable, Identifiable {
     let active: Bool; let gitBranch: String?; let cwdConfident: Bool; let lastUpdatedAt: String
     let startedAt: String?
     // User annotations. Optional so an older CLI (which does not emit them) still decodes.
-    let flags: [String]?; let note: String?; let done: Bool?
+    let flags: [String]?; let labels: [String]?; let note: String?; let done: Bool?
     let remindAt: String?; let remindDue: Bool?
+    let dueAt: String?; let overdue: Bool?
+    let hidden: Bool?; let deleted: Bool?
 
     var tags: [String] { flags ?? [] }
+    var tickets: [String] { labels ?? [] }
     var isDone: Bool { done ?? false }
     var isReminderDue: Bool { remindDue ?? false }
-    var hasAnnotation: Bool { isDone || !tags.isEmpty || note != nil || remindAt != nil }
+    var isOverdue: Bool { overdue ?? false }
+    var isHidden: Bool { hidden ?? false }
+    var isDeleted: Bool { deleted ?? false }
+    var hasAnnotation: Bool {
+        isDone || !tags.isEmpty || !tickets.isEmpty || note != nil || remindAt != nil || dueAt != nil
+    }
 }
 struct RecapResponse: Codable {
     let ok: Bool; let text: String?; let generatedAt: String?; let fromCache: Bool?; let error: String?
@@ -146,14 +154,20 @@ enum Cm {
     /// can reload without racing the write.
     static func annotate(
         id: String, name: String? = nil, note: String? = nil, flags: [String]? = nil,
-        done: Bool? = nil, remind: String? = nil, completion: (() -> Void)? = nil
+        labels: [String]? = nil, done: Bool? = nil, hidden: Bool? = nil, deleted: Bool? = nil,
+        remind: String? = nil, due: String? = nil,
+        completion: (() -> Void)? = nil
     ) {
         var args = "annotate --id '\(esc(id))'"
         if let name { args += " --name '\(esc(name))'" }
         if let note { args += " --note '\(esc(note))'" }
         if let flags { args += " --flags '\(esc(flags.joined(separator: ",")))'" }
+        if let labels { args += " --labels '\(esc(labels.joined(separator: ",")))'" }
         if let done { args += " --done \(done)" }
+        if let hidden { args += " --hidden \(hidden)" }
+        if let deleted { args += " --deleted \(deleted)" }
         if let remind { args += " --remind '\(esc(remind))'" }
+        if let due { args += " --due '\(esc(due))'" }
         DispatchQueue.global().async {
             do { _ = try run(args) } catch { postFailure(error) }
             if let completion { DispatchQueue.main.async(execute: completion) }

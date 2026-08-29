@@ -3,6 +3,24 @@
 All notable changes to Agentctl are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.6.0] — 2026-08-29
+
+### Added
+
+- **Hide and delete sessions**, in the CLI, the TUI and the GUI. Both are *listing preferences* —
+  **neither touches the Claude Code transcript**, removes anything from `~/.claude`, or stops a
+  session resuming if you address it by id.
+  - `agentctl hide` keeps a session out of the default list; it stays under `agentctl ls --hidden`.
+  - `agentctl delete` keeps it out of every list except `agentctl ls --deleted`.
+  - Both take `--undo`. Deleted outranks hidden. `agentctl ls --all` shows everything.
+  - TUI: `h` hides, `x` deletes (twice — it drops out of every view), `v` cycles normal → hidden →
+    deleted, and the old hide-done toggle moves from `h` to `H`.
+  - GUI: Hide and Delete buttons in the details pane, plus a view menu in the toolbar.
+- **The GUI reached parity with the CLI** — it can now read and edit labels and due dates as well as
+  names, notes, flags, reminders and done state, shows a badge for each, and searches labels.
+- `/agentctl-hide` and `/agentctl-delete` in the plugin, and the skill now knows both — with an
+  explicit rule that Claude must never delete a session it was not asked to.
+
 ## [0.5.0] — 2026-08-29
 
 ### Changed — BREAKING

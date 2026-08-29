@@ -28,6 +28,8 @@ export interface AnnotationPatch {
   addLabels?: string[];
   removeLabels?: string[];
   done?: boolean;
+  hidden?: boolean;
+  deleted?: boolean;
   /** ISO timestamp. `null` clears it. */
   remindAt?: string | null;
   /** ISO timestamp. `null` clears it. */
@@ -71,6 +73,8 @@ export function parseAnnotation(id: string, raw: string): Annotation | null {
       ? [...new Set(d.labels.filter((l): l is string => typeof l === 'string').map(normalizeLabel).filter(Boolean))]
       : [],
     done: d.done === true,
+    hidden: d.hidden === true,
+    deleted: d.deleted === true,
     remindAt: str(d.remindAt),
     dueAt: str(d.dueAt),
     updatedAt: str(d.updatedAt),
@@ -113,7 +117,7 @@ export function readAllAnnotations(dir = annotationsDir()): Map<string, Annotati
 
 /** True when the annotation carries nothing worth keeping on disk. */
 function isEmpty(a: Annotation): boolean {
-  return !a.name && !a.note && !a.done && !a.remindAt && !a.dueAt &&
+  return !a.name && !a.note && !a.done && !a.hidden && !a.deleted && !a.remindAt && !a.dueAt &&
     a.flags.length === 0 && a.labels.length === 0;
 }
 
@@ -127,7 +131,8 @@ function isEmpty(a: Annotation): boolean {
  */
 export function writeAnnotation(id: string, patch: AnnotationPatch, dir = annotationsDir()): Annotation {
   if (!isValidSessionId(id)) throw new Error(`invalid session id: ${id}`);
-  const current = readAnnotation(id, dir) ?? { sessionId: id, flags: [], labels: [], done: false };
+  const current = readAnnotation(id, dir) ??
+    { sessionId: id, flags: [], labels: [], done: false, hidden: false, deleted: false };
   const flags = new Set(current.flags);
   for (const f of patch.addFlags ?? []) { const n = normalizeFlag(f); if (n) flags.add(n); }
   for (const f of patch.removeFlags ?? []) flags.delete(normalizeFlag(f));
@@ -142,6 +147,8 @@ export function writeAnnotation(id: string, patch: AnnotationPatch, dir = annota
     flags: [...flags].sort(),
     labels: [...labels].sort(),
     done: patch.done ?? current.done,
+    hidden: patch.hidden ?? current.hidden,
+    deleted: patch.deleted ?? current.deleted,
     remindAt: patch.remindAt === null ? undefined : (patch.remindAt ?? current.remindAt),
     dueAt: patch.dueAt === null ? undefined : (patch.dueAt ?? current.dueAt),
     updatedAt: new Date().toISOString(),

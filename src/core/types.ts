@@ -38,6 +38,17 @@ export interface Annotation {
   /** Descriptive tags that link a session to something: a Jira key, a repo, a topic. Searchable. */
   labels: string[];
   done: boolean;
+  /**
+   * Kept out of the default listing but shown in the hidden view. Purely a listing preference —
+   * the Claude Code transcript is never touched.
+   */
+  hidden: boolean;
+  /**
+   * Kept out of every listing except the explicit deleted view. Recoverable with
+   * `agentctl delete --undo`. Still only a listing preference — the transcript is never touched
+   * and nothing is removed from ~/.claude.
+   */
+  deleted: boolean;
   /** ISO timestamp — nudge me at this time. */
   remindAt?: string;
   /** ISO timestamp — the work itself is due at this time. */
@@ -45,9 +56,13 @@ export interface Annotation {
   updatedAt?: string;
 }
 
+/** Which slice of the sessions to list. `normal` hides both hidden and deleted ones. */
+export type SessionView = 'normal' | 'hidden' | 'deleted' | 'all';
+
 export interface ListOptions {
   cwd?: string;
   activeOnly?: boolean;
+  view?: SessionView;
   sortBy?: 'updated' | 'started' | 'name';
   limit?: number;
 }

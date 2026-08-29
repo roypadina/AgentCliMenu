@@ -4,7 +4,7 @@ import type { Annotation } from '../../src/core/types.js';
 
 const ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const payload = JSON.stringify({ session_id: ID, hook_event_name: 'SessionStart', source: 'startup' });
-const ann = (o: Partial<Annotation> = {}): Annotation => ({ sessionId: ID, flags: [], labels: [], done: false, ...o });
+const ann = (o: Partial<Annotation> = {}): Annotation => ({ sessionId: ID, flags: [], labels: [], done: false, hidden: false, deleted: false, ...o });
 const none = { annotation: () => null, all: () => new Map<string, Annotation>() };
 
 describe('parseSessionId', () => {

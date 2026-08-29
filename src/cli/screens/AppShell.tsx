@@ -53,7 +53,7 @@ export function AppShell({ initialTab, config, warnings, projects, configError, 
   useEffect(() => {
     if (tab === 'resume' && sessions === null && !startedResume.current) {
       startedResume.current = true;
-      listSessions().then(setSessions).catch(() => setSessions([]));
+      listSessions({ view: 'all' }).then(setSessions).catch(() => setSessions([]));
     }
   }, [tab, sessions]);
 

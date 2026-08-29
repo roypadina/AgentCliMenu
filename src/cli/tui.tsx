@@ -15,7 +15,7 @@ import { useKeyChunk, upCount, downCount } from './useKeyChunk.js';
 import {
   writeAnnotation, parseWhen, isReminderDue, isOverdue, detectIssueKeys, type AnnotationPatch,
 } from '../core/annotations.js';
-import type { SessionRecord, SessionStatus, TranscriptTurn } from '../core/types.js';
+import type { SessionRecord, SessionStatus, SessionView, TranscriptTurn } from '../core/types.js';
 
 interface RecapState { text?: string; loading?: boolean; error?: string }
 
@@ -82,8 +82,18 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const [prompt, setPrompt] = useState<{ kind: PromptKind; value: string } | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [hideDone, setHideDone] = useState(false);
+  const [sessionView, setSessionView] = useState<SessionView>('normal');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const visible = hideDone ? records.filter(r => !r.annotation?.done) : records;
+  // Hidden and deleted are listing preferences only — the transcript is never touched, and the
+  // records array holds everything so switching views costs nothing.
+  const inView = (r: SessionRecord) => {
+    const a = r.annotation;
+    if (sessionView === 'hidden') return a?.hidden === true && a?.deleted !== true;
+    if (sessionView === 'deleted') return a?.deleted === true;
+    return a?.hidden !== true && a?.deleted !== true;
+  };
+  const visible = records.filter(r => inView(r) && !(hideDone && r.annotation?.done));
   const haystack = (r: SessionRecord) =>
     `${r.name}  ${tildify(r.cwd)}  ${r.id}  ${(r.annotation?.flags ?? []).map(f => '#' + f).join(' ')}` +
     `  ${(r.annotation?.labels ?? []).join(' ')}  ${r.annotation?.note ?? ''}`;
@@ -297,6 +307,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     if (input === 'q') { quit(); return; }
     if (input === '?') { setMode('help'); return; }
     if (key.escape) {
+      if (confirmDeleteId) { setConfirmDeleteId(null); return; }
       if (confirmResumeId) { setConfirmResumeId(null); return; }
       if (filter) { setFilter(''); setCursor(0); return; } // clear filter first (matches New + GUI)
       back();
@@ -322,7 +333,29 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
       if (sel) annotate(sel, { done: !sel.annotation?.done });
       return;
     }
-    if (input === 'h') { setHideDone(v => !v); setCursor(0); return; }
+    if (input === 'H') { setHideDone(v => !v); setCursor(0); return; }
+    if (input === 'h') {
+      const sel = filtered[clamped];
+      if (sel) { annotate(sel, { hidden: !sel.annotation?.hidden }); setCursor(0); }
+      return;
+    }
+    if (input === 'x') {
+      const sel = filtered[clamped];
+      if (!sel) return;
+      if (sel.annotation?.deleted) { annotate(sel, { deleted: false }); setCursor(0); return; }
+      // deleting drops it out of every view, so make it a two-press action
+      if (confirmDeleteId !== sel.id) { setConfirmDeleteId(sel.id); return; }
+      annotate(sel, { deleted: true });
+      setConfirmDeleteId(null);
+      setCursor(0);
+      return;
+    }
+    if (input === 'v') {
+      setSessionView(v => (v === 'normal' ? 'hidden' : v === 'hidden' ? 'deleted' : 'normal'));
+      setCursor(0);
+      setConfirmDeleteId(null);
+      return;
+    }
     if (input === 's') {
       setSearchInput(searchQuery);
       setMode('search-input');
@@ -338,7 +371,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
       }
     }
     if (key.ctrl && input === 'r') {
-      listSessions().then(setRecords).catch(() => { /* noop */ });
+      listSessions({ view: 'all' }).then(setRecords).catch(() => { /* noop */ });
     }
     if ((input === 'r' || input === 'R') && !key.ctrl) {
       const s = filtered[clamped];
@@ -401,7 +434,10 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const renderHeader = () => (
     <Box flexDirection="column">
       <Box>
-        <Text bold color="cyan">resume</Text>
+        <Text bold color={sessionView === 'deleted' ? 'red' : sessionView === 'hidden' ? 'yellow' : 'cyan'}>
+          {sessionView === 'normal' ? 'resume'
+            : sessionView === 'hidden' ? 'resume · hidden' : 'resume · deleted'}
+        </Text>
         <Text dimColor>   </Text>
         <Text color="white">{records.length}</Text>
         <Text dimColor> sessions  ·  </Text>
@@ -498,6 +534,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
               s={sel}
               recap={selRecap}
               confirming={confirmResumeId === sel.id}
+              deleting={confirmDeleteId === sel.id}
               maxNoteLines={noteLines}
               maxRecapLines={recapBodyLines}
               narrow={cols < 70}
@@ -586,7 +623,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
           <HelpRow k="f / l" v="flags / labels (Jira key, repo, topic)" />
           <HelpRow k="t / u" v="reminder / due date" />
           <HelpRow k="" v="(l pre-fills the issue key from the branch)" />
-          <HelpRow k="d / h" v="toggle done / hide done" />
+          <HelpRow k="d / H" v="toggle done / show-hide done sessions" />
+          <HelpRow k="h / x" v="hide session / delete session (x twice)" />
+          <HelpRow k="v" v="cycle view: normal → hidden → deleted" />
           <HelpRow k="^r" v="refresh sessions" />
           <HelpRow k="⇥ tab" v="switch to New" />
           <HelpRow k="q" v="quit" />
@@ -711,6 +750,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
                   <Text dimColor> · r </Text><Text color="white">recap</Text>
                   <Text dimColor> · p </Text><Text color="white">peek</Text>
                   <Text dimColor> · e/n/f/l/t/u/d </Text><Text color="white">annotate</Text>
+                  <Text dimColor> · v </Text><Text color="white">view</Text>
                 </>
               ) : null}
               <Text dimColor> · ? </Text><Text color="white">help</Text>
@@ -779,8 +819,8 @@ function Row({ r, selected, wName, wBranch, wUsed, bar, extras }: {
 }
 
 /** Always-visible "more info" for the highlighted row (Roy's ask): full metadata + last-used + recap. */
-function DetailsPane({ s, recap, confirming, maxNoteLines, maxRecapLines, narrow }: {
-  s: SessionRecord; recap?: RecapState; confirming: boolean;
+function DetailsPane({ s, recap, confirming, deleting, maxNoteLines, maxRecapLines, narrow }: {
+  s: SessionRecord; recap?: RecapState; confirming: boolean; deleting: boolean;
   /** Line budgets computed by the caller — the pane must not render more than the screen has. */
   maxNoteLines: number; maxRecapLines: number;
   /** Too narrow for both timestamps on one row; keep the one that matters. */
@@ -849,6 +889,12 @@ function DetailsPane({ s, recap, confirming, maxNoteLines, maxRecapLines, narrow
           <Text dimColor>press R to generate a recap</Text>
         )}
       </Box>
+      {deleting ? (
+        <Box>
+          <Text color="red">x again to delete — </Text>
+          <Text dimColor>recover with v → x or `agentctl delete --undo`. The transcript is untouched.</Text>
+        </Box>
+      ) : null}
       {confirming ? (
         <Box>
           <Text color="yellow">⚠ cwd uncertain — </Text>
@@ -877,7 +923,7 @@ function highlight(text: string, query: string, maxLen: number): string {
 }
 
 export async function runTui(): Promise<void> {
-  const records = await listSessions();
+  const records = await listSessions({ view: 'all' });
   if (process.stdout.isTTY) process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
   const { waitUntilExit } = inkRender(<App initial={records} />);
   await waitUntilExit();

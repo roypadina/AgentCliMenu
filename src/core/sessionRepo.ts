@@ -7,7 +7,7 @@ import { liveSessionMap } from './liveState.js';
 import { readGitBranch } from './git.js';
 import { readAllAnnotations } from './annotations.js';
 import type { Stats } from 'node:fs';
-import type { Annotation, ListOptions, LiveSession, SessionRecord } from './types.js';
+import type { Annotation, ListOptions, LiveSession, SessionRecord, SessionView } from './types.js';
 
 export async function listSessions(opts: ListOptions = {}): Promise<SessionRecord[]> {
   const out: SessionRecord[] = [];
@@ -39,6 +39,7 @@ export async function listSessions(opts: ListOptions = {}): Promise<SessionRecor
         const scan = await scanJsonl(jsonlPath);
         const rec = buildRecord(id, jsonlPath, st, scan, decoded, live.get(id) ?? null, annotations.get(id), dirname(root));
         if (opts.activeOnly && !rec.active) continue;
+        if (!inView(rec.annotation, opts.view ?? 'normal')) continue;
         out.push(rec);
       }
     }
@@ -85,7 +86,19 @@ function buildRecord(
   };
 }
 
+/**
+ * Hidden and deleted are listing preferences only — nothing is ever removed from ~/.claude, and a
+ * session excluded here still resumes normally if you address it by id.
+ */
+function inView(a: Annotation | undefined, view: SessionView): boolean {
+  if (view === 'all') return true;
+  if (view === 'hidden') return a?.hidden === true && a?.deleted !== true;
+  if (view === 'deleted') return a?.deleted === true;
+  return a?.hidden !== true && a?.deleted !== true;
+}
+
 export async function getSession(prefix: string): Promise<SessionRecord[]> {
-  const all = await listSessions();
+  // id lookups see everything — you must be able to un-delete what you cannot list.
+  const all = await listSessions({ view: 'all' });
   return all.filter(s => s.id.startsWith(prefix));
 }

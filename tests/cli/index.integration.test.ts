@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +13,7 @@ let cwdDir: string;
 function runCli(args: string[]) {
   return spawnSync('npx', ['tsx', entry, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, AGENTCTL_HOME: home, FORCE_COLOR: '0' },
+    env: { ...process.env, AGENTCTL_HOME: home, XDG_CONFIG_HOME: home, FORCE_COLOR: '0' },
   });
 }
 
@@ -52,5 +52,45 @@ describe('ccsm CLI', () => {
   it('exits 1 on missing id', () => {
     const r = runCli(['peek', 'zzzzzzzz']);
     expect(r.status).toBe(1);
+  });
+});
+
+describe('hidden and deleted sessions', () => {
+  const jsonl = () => join(home, 'projects', cwdDir.replaceAll('/', '-'),
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl');
+  const ids = (args: string[]) => JSON.parse(runCli([...args, '--json']).stdout).map((r: {id: string}) => r.id);
+  const ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+
+  it('moves a session between the views, and back, without touching its transcript', () => {
+    const before = statSync(jsonl());
+
+    expect(ids(['ls'])).toContain(ID);
+
+    runCli(['hide', '-s', ID]);
+    expect(ids(['ls'])).not.toContain(ID);
+    expect(ids(['ls', '--hidden'])).toContain(ID);
+    expect(ids(['ls', '--all'])).toContain(ID);
+
+    runCli(['delete', '-s', ID]);
+    expect(ids(['ls'])).not.toContain(ID);
+    expect(ids(['ls', '--hidden'])).not.toContain(ID);   // deleted outranks hidden
+    expect(ids(['ls', '--deleted'])).toContain(ID);
+
+    runCli(['delete', '-s', ID, '--undo']);
+    runCli(['hide', '-s', ID, '--undo']);
+    expect(ids(['ls'])).toContain(ID);
+
+    // the whole point: none of that may write to ~/.claude
+    const after = statSync(jsonl());
+    expect(after.size).toBe(before.size);
+    expect(after.mtimeMs).toBe(before.mtimeMs);
+  });
+
+  it('still resolves a deleted session by id, so it can be recovered', () => {
+    runCli(['delete', '-s', ID]);
+    const r = runCli(['path', ID.slice(0, 8)]);
+    expect(r.status).toBe(0);
+    expect(r.stdout.trim()).toBe(jsonl());
+    runCli(['delete', '-s', ID, '--undo']);
   });
 });

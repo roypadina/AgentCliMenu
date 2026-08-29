@@ -46,7 +46,7 @@ export async function runApp(initial: Screen): Promise<void> {
   const projects = configResult
     ? await listProjects(configResult.config.groups, { withGit: true })
     : [];
-  const initialSessions: SessionRecord[] | null = tab === 'resume' ? await listSessions() : null;
+  const initialSessions: SessionRecord[] | null = tab === 'resume' ? await listSessions({ view: 'all' }) : null;
 
   if (process.stdout.isTTY) process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
   const instance = inkRender(

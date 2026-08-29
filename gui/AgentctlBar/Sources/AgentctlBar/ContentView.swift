@@ -51,6 +51,9 @@ struct ContentView: View {
     @State private var annName = ""
     @State private var annFlags = ""
     @State private var annNote = ""
+    @State private var annLabels = ""
+    /// normal | hidden | deleted — hidden and deleted are listing preferences only.
+    @State private var sessionView = "normal"
 
     private var query: String { search.trimmingCharacters(in: .whitespaces) }
 
@@ -75,9 +78,10 @@ struct ContentView: View {
     }
     private var newFlat: [Dir] { newSections.flatMap { $0.dirs } }
     private var resumeItems: [Session] {
-        Fuzzy.rank(query, sessions) {
+        Fuzzy.rank(query, sessions.filter(inSessionView)) {
             "\($0.name)  \(tilde($0.cwd))  \($0.id)  "
-                + $0.tags.map { "#" + $0 }.joined(separator: " ") + "  " + ($0.note ?? "")
+                + $0.tags.map { "#" + $0 }.joined(separator: " ") + "  "
+                + $0.tickets.joined(separator: " ") + "  " + ($0.note ?? "")
         }
     }
     private var count: Int { tab == .new ? newFlat.count : resumeItems.count }
@@ -139,6 +143,19 @@ struct ContentView: View {
                 }
                 if let onDetach = onDetach {
                     Button(action: onDetach) { Image(systemName: "macwindow") }.buttonStyle(.borderless).help("Open in a window")
+                }
+                if tab == .resume {
+                    Menu {
+                        Button("Normal") { sessionView = "normal"; selection = 0 }
+                        Button("Hidden") { sessionView = "hidden"; selection = 0 }
+                        Button("Deleted") { sessionView = "deleted"; selection = 0 }
+                    } label: {
+                        Image(systemName: sessionView == "deleted" ? "trash"
+                                        : sessionView == "hidden" ? "eye.slash" : "list.bullet")
+                    }
+                    .menuStyle(.borderlessButton).fixedSize()
+                    .foregroundColor(sessionView == "normal" ? .secondary : .orange)
+                    .help("Which sessions to list: normal, hidden, or deleted")
                 }
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }.buttonStyle(.borderless).help("Settings")
             }
@@ -254,6 +271,25 @@ struct ContentView: View {
                 .foregroundColor(s.isDone ? .green : .secondary)
                 .help(s.isDone ? "Reopen this session" : "Mark this session finished")
 
+                Button {
+                    Cm.annotate(id: s.id, hidden: !s.isHidden) { Task { await refreshSessions() } }
+                } label: {
+                    Label(s.isHidden ? "Unhide" : "Hide", systemImage: s.isHidden ? "eye" : "eye.slash")
+                }
+                .font(.caption2).buttonStyle(.borderless).foregroundColor(.secondary)
+                .help(s.isHidden ? "Show it in the normal list again"
+                                 : "Keep it out of the normal list (still in Hidden)")
+
+                Button {
+                    Cm.annotate(id: s.id, deleted: !s.isDeleted) { Task { await refreshSessions() } }
+                } label: {
+                    Label(s.isDeleted ? "Restore" : "Delete", systemImage: s.isDeleted ? "arrow.uturn.backward" : "trash")
+                }
+                .font(.caption2).buttonStyle(.borderless)
+                .foregroundColor(s.isDeleted ? .secondary : .red)
+                .help(s.isDeleted ? "Put it back in the lists"
+                                  : "Keep it out of every list. Recoverable — the transcript is never touched.")
+
                 Menu {
                     ForEach(["1h", "3h", "tomorrow 9am", "3d"], id: \.self) { w in
                         Button("in \(w)") { Cm.annotate(id: s.id, remind: w) { Task { await refreshSessions() } } }
@@ -267,10 +303,30 @@ struct ContentView: View {
                 }
                 .font(.caption2).menuStyle(.borderlessButton).fixedSize()
                 .help("Flag this session in the picker at a chosen time")
+
+                Menu {
+                    ForEach(["today 17:00", "tomorrow 17:00", "3d", "1w"], id: \.self) { w in
+                        Button(w) { Cm.annotate(id: s.id, due: w) { Task { await refreshSessions() } } }
+                    }
+                    if s.dueAt != nil {
+                        Divider()
+                        Button("Clear due date") { Cm.annotate(id: s.id, due: "") { Task { await refreshSessions() } } }
+                    }
+                } label: {
+                    Label("Due", systemImage: "calendar")
+                }
+                .font(.caption2).menuStyle(.borderlessButton).fixedSize()
+                .help("When the work in this session is actually due")
             }
             TextField("name this session", text: $annName)
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .onSubmit { Cm.annotate(id: s.id, name: annName) { Task { await refreshSessions() } } }
+            TextField("labels — ticket, repo, topic (RD-12345, catalog)", text: $annLabels)
+                .textFieldStyle(.roundedBorder).font(.caption2)
+                .onSubmit {
+                    let list = annLabels.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                    Cm.annotate(id: s.id, labels: list.filter { !$0.isEmpty }) { Task { await refreshSessions() } }
+                }
             TextField("flags, comma separated (todo, later…)", text: $annFlags)
                 .textFieldStyle(.roundedBorder).font(.caption2)
                 .onSubmit {
@@ -291,7 +347,17 @@ struct ContentView: View {
         annEditingId = id
         annName = s.name
         annFlags = s.tags.joined(separator: ", ")
+        annLabels = s.tickets.joined(separator: ", ")
         annNote = s.note ?? ""
+    }
+
+    /// Hidden and deleted never leave the transcript — they only drop out of listings here.
+    private func inSessionView(_ s: Session) -> Bool {
+        switch sessionView {
+        case "hidden":  return s.isHidden && !s.isDeleted
+        case "deleted": return s.isDeleted
+        default:        return !s.isHidden && !s.isDeleted
+        }
     }
 
     /// Compact annotation markers: done · flagged · noted · reminder (red once due).
@@ -306,6 +372,10 @@ struct ContentView: View {
                 Image(systemName: "tag.fill").font(.caption2).foregroundColor(.yellow)
                     .help(s.tags.map { "#" + $0 }.joined(separator: " "))
             }
+            if !s.tickets.isEmpty {
+                Image(systemName: "number").font(.caption2).foregroundColor(.blue)
+                    .help(s.tickets.joined(separator: " "))
+            }
             if let n = s.note {
                 Image(systemName: "note.text").font(.caption2).foregroundColor(.cyan).help(n)
             }
@@ -313,6 +383,11 @@ struct ContentView: View {
                 Image(systemName: "bell.fill").font(.caption2)
                     .foregroundColor(s.isReminderDue ? .red : .purple)
                     .help(s.isReminderDue ? "reminder due" : "reminder set")
+            }
+            if s.dueAt != nil {
+                Image(systemName: "calendar").font(.caption2)
+                    .foregroundColor(s.isOverdue ? .red : .blue)
+                    .help(s.isOverdue ? "overdue" : "has a due date")
             }
         }
     }

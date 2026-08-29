@@ -14,7 +14,8 @@ import { planTerminal, resolveCustomTemplate } from '../core/terminalLaunch.js';
 import { setGuiTerminal } from './config.js';
 import { shellQuote } from './launch.js';
 import {
-  isReminderDue, isValidSessionId, normalizeFlag, parseWhen, readAnnotation, writeAnnotation,
+  isReminderDue, isOverdue, isValidSessionId, normalizeFlag, normalizeLabel, parseWhen,
+  readAnnotation, writeAnnotation,
   type AnnotationPatch,
 } from '../core/annotations.js';
 import type { AgentctlConfig } from '../core/config/types.js';
@@ -98,17 +99,24 @@ export function registerGuiCommands(program: Command): void {
   gui.command('sessions')
     .description('list resumable sessions as JSON')
     .action(async () => {
-      const records = await listSessions();
+      // Everything, including hidden and deleted — the GUI filters client-side so switching
+      // views is instant. Hidden/deleted are listing preferences; transcripts are untouched.
+      const records = await listSessions({ view: 'all' });
       console.log(JSON.stringify(records.map((r) => ({
         id: r.id, name: r.name, cwd: r.cwd, status: r.status, active: r.active,
         gitBranch: r.gitBranch ?? null, cwdConfident: r.cwdDecodeConfident,
         lastUpdatedAt: r.lastUpdatedAt.toISOString(),
         startedAt: r.startedAt.toISOString(),
         flags: r.annotation?.flags ?? [],
+        labels: r.annotation?.labels ?? [],
         note: r.annotation?.note ?? null,
         done: r.annotation?.done ?? false,
+        hidden: r.annotation?.hidden ?? false,
+        deleted: r.annotation?.deleted ?? false,
         remindAt: r.annotation?.remindAt ?? null,
         remindDue: isReminderDue(r.annotation),
+        dueAt: r.annotation?.dueAt ?? null,
+        overdue: isOverdue(r.annotation),
       }))));
     });
 
@@ -164,9 +172,16 @@ export function registerGuiCommands(program: Command): void {
     .option('--name <name>', 'set the name override ("" clears it)')
     .option('--note <note>', 'set the note ("" clears it)')
     .option('--flags <csv>', 'replace the whole flag set (comma separated, "" clears)')
+    .option('--labels <csv>', 'replace the whole label set (comma separated, "" clears)')
     .option('--done <bool>', 'true|false')
+    .option('--hidden <bool>', 'true|false — keep it out of the default list')
+    .option('--deleted <bool>', 'true|false — keep it out of every list')
     .option('--remind <when>', '2h | tomorrow 9am | ISO ("" clears)')
-    .action((opts: { id: string; name?: string; note?: string; flags?: string; done?: string; remind?: string }) => {
+    .option('--due <when>', '3d | friday 17:00 | ISO ("" clears)')
+    .action((opts: {
+      id: string; name?: string; note?: string; flags?: string; labels?: string;
+      done?: string; hidden?: string; deleted?: string; remind?: string; due?: string;
+    }) => {
       if (!isValidSessionId(opts.id)) {
         console.log(JSON.stringify({ ok: false, error: 'invalid id' }));
         process.exit(3);
@@ -175,24 +190,33 @@ export function registerGuiCommands(program: Command): void {
       if (opts.name !== undefined) patch.name = opts.name.trim() || null;
       if (opts.note !== undefined) patch.note = opts.note.trim() || null;
       if (opts.done !== undefined) patch.done = opts.done === 'true';
-      if (opts.remind !== undefined) {
-        const raw = opts.remind.trim();
-        if (!raw) patch.remindAt = null;
-        else {
-          const at = parseWhen(raw);
-          if (!at) {
-            console.log(JSON.stringify({ ok: false, error: `unrecognised time: ${raw}` }));
-            process.exit(4);
-          }
-          patch.remindAt = at.toISOString();
+      if (opts.hidden !== undefined) patch.hidden = opts.hidden === 'true';
+      if (opts.deleted !== undefined) patch.deleted = opts.deleted === 'true';
+      for (const [opt, field] of [['remind', 'remindAt'], ['due', 'dueAt']] as const) {
+        const value = opts[opt];
+        if (value === undefined) continue;
+        const raw = value.trim();
+        if (!raw) { patch[field] = null; continue; }
+        const at = parseWhen(raw);
+        if (!at) {
+          console.log(JSON.stringify({ ok: false, error: `unrecognised time: ${raw}` }));
+          process.exit(4);
         }
+        patch[field] = at.toISOString();
       }
+      // The GUI sends whole sets; turn them into the add/remove the store speaks.
+      const current = readAnnotation(opts.id);
       if (opts.flags !== undefined) {
-        // The GUI sends the whole set; turn it into the add/remove the store speaks.
         const want = opts.flags.split(',').map(normalizeFlag).filter(Boolean);
-        const have = readAnnotation(opts.id)?.flags ?? [];
+        const have = current?.flags ?? [];
         patch.addFlags = want.filter((f) => !have.includes(f));
         patch.removeFlags = have.filter((f) => !want.includes(f));
+      }
+      if (opts.labels !== undefined) {
+        const want = opts.labels.split(',').map(normalizeLabel).filter(Boolean);
+        const have = current?.labels ?? [];
+        patch.addLabels = want.filter((l) => !have.includes(l));
+        patch.removeLabels = have.filter((l) => !want.includes(l));
       }
       const a = writeAnnotation(opts.id, patch);
       console.log(JSON.stringify({ ok: true, annotation: a }));

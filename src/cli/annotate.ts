@@ -32,6 +32,8 @@ function describe(a: Annotation): string {
   if (a.labels.length) bits.push(`labels=${a.labels.join(',')}`);
   if (a.flags.length) bits.push(`flags=${a.flags.join(',')}`);
   if (a.done) bits.push('done');
+  if (a.hidden) bits.push('hidden');
+  if (a.deleted) bits.push('deleted');
   if (a.remindAt) bits.push(`remind=${a.remindAt}`);
   if (a.dueAt) bits.push(`due=${a.dueAt}`);
   if (a.note) bits.push(`note="${a.note.replace(/\s+/g, ' ').slice(0, 60)}"`);
@@ -95,6 +97,16 @@ export function registerAnnotateCommands(program: Command) {
       if (!at) { console.error(`can't read a time out of "${raw}" — try 2h, tomorrow 9am, or an ISO date`); process.exit(2); }
       await apply(opts.session, { remindAt: at.toISOString() }, opts.json);
     });
+
+  session(program.command('hide'))
+    .description('keep a session out of the default list (it stays in `--hidden`; the transcript is untouched)')
+    .option('--undo', 'show it in the default list again')
+    .action(async (opts) => { await apply(opts.session, { hidden: !opts.undo }, opts.json); });
+
+  session(program.command('delete'))
+    .description('keep a session out of every list (recover with --undo; nothing is removed from ~/.claude)')
+    .option('--undo', 'restore it')
+    .action(async (opts) => { await apply(opts.session, { deleted: !opts.undo }, opts.json); });
 
   session(program.command('label [labels...]'))
     .description('tag a session with what it relates to — a Jira key, a repo, a topic (searchable)')
