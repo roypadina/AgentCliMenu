@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { setScreenResult, type ScreenResult } from '../router.js';
@@ -11,6 +11,7 @@ import {
 } from '../../core/launchSpec.js';
 import { getTool } from '../../core/config/loadConfig.js';
 import { fuzzyMatch } from '../../core/fuzzy.js';
+import { countDirty } from '../../core/git.js';
 import type { AgentCliMenuConfig, ConfigError, ConfigWarning } from '../../core/config/types.js';
 import type { ProjectDir } from '../../core/groupScan.js';
 
@@ -75,7 +76,8 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
   const maxVisible = Math.max(4, termRows - 9); // header + warnings + nd/footer + affordances
   const colsNew = process.stdout.columns ?? 100;
   const wBranchNew = 16;
-  const wNameNew = Math.max(18, Math.min(48, colsNew - 4 - 2 - wBranchNew - 8));
+  const wDirtyNew = 5;
+  const wNameNew = Math.max(18, Math.min(48, colsNew - 4 - 2 - wBranchNew - wDirtyNew - 8));
   const selRowIdx = selected ? rows.findIndex((r) => r.kind === 'dir' && r.dir === selected) : 0;
   const winStart = rows.length <= maxVisible
     ? 0
@@ -88,6 +90,20 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
     : null;
   const hiddenAbove = rows.slice(0, winStart).filter((r) => r.kind === 'dir').length;
   const hiddenBelow = rows.slice(winEnd).filter((r) => r.kind === 'dir').length;
+
+  // Uncommitted-change count — highlighted row only, debounced, cached per path.
+  // Spawning git per row on the scan path is banned (CLAUDE.md); this is the one exception.
+  const [dirty, setDirty] = useState<Record<string, number | null>>({});
+  const selPath = selected?.path;
+  const selIsRepo = !!selected?.gitBranch;
+  useEffect(() => {
+    if (!selPath || !selIsRepo || selPath in dirty) return;
+    const t = setTimeout(() => {
+      countDirty(selPath).then((n) => setDirty((d) => ({ ...d, [selPath]: n })));
+    }, 120);
+    return () => clearTimeout(t);
+    // `dirty` is read but intentionally not a dep: re-running on every fetch would loop.
+  }, [selPath, selIsRepo]);
 
   const dispatch = (plan: LaunchPlan) => {
     if (plan.returnsToTui) { executePlan(plan); return; } // finder etc — stay in TUI
@@ -209,6 +225,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
                 <Box width={2}><Text> </Text></Box>
                 <Box width={wNameNew} marginRight={1}><Text dimColor bold>NAME</Text></Box>
                 <Box width={wBranchNew} marginRight={1}><Text dimColor bold>BRANCH</Text></Box>
+                <Box width={wDirtyNew} marginRight={1}><Text dimColor bold> </Text></Box>
                 <Box flexGrow={1}><Text dimColor bold>AGE</Text></Box>
               </Box>
               {ctxHeader ? <Text bold color={hexColor(ctxHeader.color)}>── {ctxHeader.name} ──</Text> : null}
@@ -224,6 +241,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
                     <Box width={2}><Text bold color={sel ? 'yellow' : 'gray'}>{sel ? '▸' : ' '}</Text></Box>
                     <Box width={wNameNew} marginRight={1}><Text bold={sel} color={sel ? 'cyan' : 'white'} wrap="truncate-end">{d.name}</Text></Box>
                     <Box width={wBranchNew} marginRight={1}><Text color="magenta" wrap="truncate-end">{d.gitBranch ?? '–'}</Text></Box>
+                    <Box width={wDirtyNew} marginRight={1}><Text color="yellow">{sel && dirty[d.path] ? `±${dirty[d.path]}` : ''}</Text></Box>
                     <Box flexGrow={1}><Text dimColor>{timeAgo(new Date(d.timeMs))}</Text></Box>
                   </Box>
                 );

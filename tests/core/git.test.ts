@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readGitBranch } from '../../src/core/git.js';
+import { readGitBranch, parseDirtyCount } from '../../src/core/git.js';
 
 let root: string;
 beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'ccsm-git-')); });
@@ -37,5 +37,16 @@ describe('readGitBranch', () => {
     mkdirSync(work, { recursive: true });
     writeFileSync(join(work, '.git'), `gitdir: ${realGit}\n`);
     expect(readGitBranch(work)).toBe('main');
+  });
+});
+
+describe('parseDirtyCount', () => {
+  it('counts one line per changed path', () => {
+    expect(parseDirtyCount(' M src/a.ts\n?? new.txt\nA  b.ts\n')).toBe(3);
+  });
+
+  it('is 0 for a clean repo', () => {
+    expect(parseDirtyCount('')).toBe(0);
+    expect(parseDirtyCount('\n')).toBe(0);
   });
 });
