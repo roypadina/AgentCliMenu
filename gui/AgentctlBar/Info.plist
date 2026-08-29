@@ -11,9 +11,9 @@
     <!-- Both are stamped from package.json by gui/build-app.sh and gui/build-release.sh;
          the literals below are only what an unscripted `swift build` would see. -->
     <key>CFBundleVersion</key>
-    <string>0.6.1</string>
+    <string>0.6.2</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.6.1</string>
+    <string>0.6.2</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>

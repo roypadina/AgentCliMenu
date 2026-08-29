@@ -3,6 +3,22 @@
 All notable changes to Agentctl are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.6.2] — 2026-08-29
+
+### Changed
+
+- **The terminal menu no longer shows deleted sessions.** `v` now toggles normal ↔ hidden only.
+  Deleting is meant to make clutter go away, so the menu stops offering it back; recovery lives in
+  `agentctl delete --undo` and the menu-bar app's Deleted view. Hidden sessions are unaffected —
+  `v` still shows them.
+- **`h` (hide), `x` (delete) and `v` (hidden) now appear in the footer**, from 100 columns up. They
+  existed in 0.6.0 but only in the `?` help, which made them undiscoverable.
+
+### Fixed
+
+- `agentctl annotations` printed `(unknown session)` for hidden and deleted sessions — its name
+  lookup used the default view, which by definition excludes them.
+
 ## [0.6.1] — 2026-08-29
 
 ### Fixed

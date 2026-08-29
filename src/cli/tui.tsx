@@ -90,7 +90,6 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const inView = (r: SessionRecord) => {
     const a = r.annotation;
     if (sessionView === 'hidden') return a?.hidden === true && a?.deleted !== true;
-    if (sessionView === 'deleted') return a?.deleted === true;
     return a?.hidden !== true && a?.deleted !== true;
   };
   const visible = records.filter(r => inView(r) && !(hideDone && r.annotation?.done));
@@ -342,8 +341,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     if (input === 'x') {
       const sel = filtered[clamped];
       if (!sel) return;
-      if (sel.annotation?.deleted) { annotate(sel, { deleted: false }); setCursor(0); return; }
-      // deleting drops it out of every view, so make it a two-press action
+      // Deleting removes it from every view this screen can show, so confirm, and recover
+      // elsewhere: `agentctl delete --undo` or the GUI's Deleted view.
       if (confirmDeleteId !== sel.id) { setConfirmDeleteId(sel.id); return; }
       annotate(sel, { deleted: true });
       setConfirmDeleteId(null);
@@ -351,7 +350,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
       return;
     }
     if (input === 'v') {
-      setSessionView(v => (v === 'normal' ? 'hidden' : v === 'hidden' ? 'deleted' : 'normal'));
+      setSessionView(v => (v === 'hidden' ? 'normal' : 'hidden'));
       setCursor(0);
       setConfirmDeleteId(null);
       return;
@@ -434,9 +433,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const renderHeader = () => (
     <Box flexDirection="column">
       <Box>
-        <Text bold color={sessionView === 'deleted' ? 'red' : sessionView === 'hidden' ? 'yellow' : 'cyan'}>
-          {sessionView === 'normal' ? 'resume'
-            : sessionView === 'hidden' ? 'resume · hidden' : 'resume · deleted'}
+        <Text bold color={sessionView === 'hidden' ? 'yellow' : 'cyan'}>
+          {sessionView === 'hidden' ? 'resume · hidden' : 'resume'}
         </Text>
         <Text dimColor>   </Text>
         <Text color="white">{records.length}</Text>
@@ -624,8 +622,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
           <HelpRow k="t / u" v="reminder / due date" />
           <HelpRow k="" v="(l pre-fills the issue key from the branch)" />
           <HelpRow k="d / H" v="toggle done / show-hide done sessions" />
-          <HelpRow k="h / x" v="hide session / delete session (x twice)" />
-          <HelpRow k="v" v="cycle view: normal → hidden → deleted" />
+          <HelpRow k="h" v="hide this session — v shows hidden ones" />
+          <HelpRow k="x" v="delete this session (press twice) — undo from the CLI or the app" />
+          <HelpRow k="v" v="show hidden sessions (deleted are CLI/app only)" />
           <HelpRow k="^r" v="refresh sessions" />
           <HelpRow k="⇥ tab" v="switch to New" />
           <HelpRow k="q" v="quit" />
@@ -742,15 +741,21 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
               <Text dimColor>↑/↓ </Text><Text color="white">move</Text>
               <Text dimColor> · ⏎ </Text><Text color="white">resume</Text>
               <Text dimColor> · / </Text><Text color="white">filter</Text>
-              {/* Each hint that does not fit wraps the footer onto a second line and steals a list
-                  row, so drop them by width instead. `?` always has the full keymap. */}
+              {/* Each hint that does not fit wraps the footer and steals a list row, so the
+                  tiers below are sized to what actually renders. `?` has the full keymap. */}
               {cols >= 70 ? (<><Text dimColor> · s </Text><Text color="white">search</Text></>) : null}
               {cols >= 100 ? (
+                <>
+                  <Text dimColor> · h </Text><Text color="white">hide</Text>
+                  <Text dimColor> · x </Text><Text color="white">delete</Text>
+                  <Text dimColor> · v </Text><Text color="white">hidden</Text>
+                </>
+              ) : null}
+              {cols >= 140 ? (
                 <>
                   <Text dimColor> · r </Text><Text color="white">recap</Text>
                   <Text dimColor> · p </Text><Text color="white">peek</Text>
                   <Text dimColor> · e/n/f/l/t/u/d </Text><Text color="white">annotate</Text>
-                  <Text dimColor> · v </Text><Text color="white">view</Text>
                 </>
               ) : null}
               <Text dimColor> · ? </Text><Text color="white">help</Text>
@@ -892,7 +897,7 @@ function DetailsPane({ s, recap, confirming, deleting, maxNoteLines, maxRecapLin
       {deleting ? (
         <Box>
           <Text color="red">x again to delete — </Text>
-          <Text dimColor>recover with v → x or `agentctl delete --undo`. The transcript is untouched.</Text>
+          <Text dimColor>gone from this menu. Recover with `agentctl delete --undo` or the app's Deleted view. The transcript is untouched.</Text>
         </Box>
       ) : null}
       {confirming ? (

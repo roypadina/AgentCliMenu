@@ -154,7 +154,8 @@ export function registerAnnotateCommands(program: Command) {
       const missing = all.filter(a => !a.name);
       const titles = new Map<string, string>();
       if (missing.length) {
-        for (const s of await listSessions()) titles.set(s.id, s.name);
+        // 'all' — a hidden or deleted session still has a name worth showing here.
+        for (const s of await listSessions({ view: 'all' })) titles.set(s.id, s.name);
       }
       for (const a of all) {
         const label = a.name ?? titles.get(a.sessionId) ?? '(unknown session)';

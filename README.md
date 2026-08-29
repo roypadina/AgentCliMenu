@@ -189,8 +189,11 @@ agentctl config --setup | --edit | --path         # manage the shared config
 **Resume** — `↑/↓` (or `j/k`) move · `pgup/pgdn` page · `g/G` first/last · `↵` resume · `p` peek · `r` recap ·
 `/` fuzzy-filter · `s` full-text search · `^r` refresh · `⇥` New · `?` help · `q` quit.
 Annotate the highlighted session in place: `e` name · `n` note · `l` labels · `f` flags · `t` reminder ·
-`u` due date · `d` done. `h` hides a session, `x` deletes it (twice), `v` cycles normal → hidden →
-deleted, `H` shows/hides done ones. (`l` pre-fills the issue key from the branch.)
+`u` due date · `d` done. `h` hides a session, `x` deletes it (twice), `v` shows the hidden ones,
+`H` shows/hides done ones. (`l` pre-fills the issue key from the branch.)
+
+Deleted sessions are deliberately **not reachable from the menu** — that is what makes deleting feel
+safe to do. Recover them with `agentctl delete --undo`, or from the menu-bar app's Deleted view.
 Highlighting a row shows its full details + recap inline. A `!` marks a session whose working directory
 couldn't be decoded with confidence — `↵` twice to resume anyway.
 
