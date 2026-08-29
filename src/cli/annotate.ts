@@ -46,6 +46,38 @@ async function apply(sessionOpt: string | undefined, patch: AnnotationPatch, jso
   console.log(json ? JSON.stringify(a) : `${id.slice(0, 8)}  ${describe(a)}`);
 }
 
+/**
+ * Bulk form for the toggles: `agentctl hide <id> <id> …`. With no ids it falls back to the single
+ * -s / current-session path, so the simple case is unchanged.
+ */
+async function applyMany(
+  ids: string[], sessionOpt: string | undefined, patch: AnnotationPatch, json?: boolean,
+) {
+  if (ids.length === 0) { await apply(sessionOpt, patch, json); return; }
+
+  // Resolve every prefix against ONE scan. Resolving them concurrently ran a full session scan
+  // per id, which opened enough files at once to make some of them come back empty.
+  const needScan = ids.some(id => !UUID_RE.test(id));
+  const all = needScan ? await listSessions({ view: 'all' }) : [];
+  const resolved: string[] = [];
+  for (const id of ids) {
+    if (UUID_RE.test(id)) { resolved.push(id); continue; }
+    if (id.length < 4) { console.error(`id prefix must be at least 4 characters: ${id}`); process.exit(2); }
+    const matches = all.filter(s => s.id.startsWith(id));
+    if (matches.length === 0) { console.error(`not found: ${id}`); process.exit(1); }
+    if (matches.length > 1) {
+      console.error(`ambiguous prefix '${id}', matches:`);
+      for (const m of matches) console.error(`  ${m.id}  ${m.name}`);
+      process.exit(2);
+    }
+    resolved.push(matches[0].id);
+  }
+  const out = resolved.map(id => writeAnnotation(id, patch));
+  if (json) { console.log(JSON.stringify(out)); return; }
+  for (const a of out) console.log(`${a.sessionId.slice(0, 8)}  ${describe(a)}`);
+  if (out.length > 1) console.log(`${out.length} sessions updated`);
+}
+
 export function registerAnnotateCommands(program: Command) {
   const session = (c: Command) =>
     c.option('-s, --session <id>', 'session id or prefix (default: the session you are in)')
@@ -82,10 +114,12 @@ export function registerAnnotateCommands(program: Command) {
       await apply(opts.session, opts.remove ? { removeFlags: flags } : { addFlags: flags }, opts.json);
     });
 
-  session(program.command('done'))
-    .description('mark a session finished (--undo to reopen it)')
-    .option('--undo', 'mark it not-done again')
-    .action(async (opts) => { await apply(opts.session, { done: !opts.undo }, opts.json); });
+  session(program.command('done [ids...]'))
+    .description('mark sessions finished (--undo to reopen them)')
+    .option('--undo', 'mark them not-done again')
+    .action(async (ids: string[], opts) => {
+      await applyMany(ids, opts.session, { done: !opts.undo }, opts.json);
+    });
 
   session(program.command('remind [when...]'))
     .description('set a reminder: 2h, 30m, 3d, tomorrow, "tomorrow 9am", 17:00, or an ISO date')
@@ -98,15 +132,19 @@ export function registerAnnotateCommands(program: Command) {
       await apply(opts.session, { remindAt: at.toISOString() }, opts.json);
     });
 
-  session(program.command('hide'))
-    .description('keep a session out of the default list (it stays in `--hidden`; the transcript is untouched)')
-    .option('--undo', 'show it in the default list again')
-    .action(async (opts) => { await apply(opts.session, { hidden: !opts.undo }, opts.json); });
+  session(program.command('hide [ids...]'))
+    .description('keep sessions out of the default list (they stay in `--hidden`; transcripts untouched)')
+    .option('--undo', 'show them in the default list again')
+    .action(async (ids: string[], opts) => {
+      await applyMany(ids, opts.session, { hidden: !opts.undo }, opts.json);
+    });
 
-  session(program.command('delete'))
-    .description('keep a session out of every list (recover with --undo; nothing is removed from ~/.claude)')
-    .option('--undo', 'restore it')
-    .action(async (opts) => { await apply(opts.session, { deleted: !opts.undo }, opts.json); });
+  session(program.command('delete [ids...]'))
+    .description('keep sessions out of every list (recover with --undo; nothing is removed from ~/.claude)')
+    .option('--undo', 'restore them')
+    .action(async (ids: string[], opts) => {
+      await applyMany(ids, opts.session, { deleted: !opts.undo }, opts.json);
+    });
 
   session(program.command('label [labels...]'))
     .description('tag a session with what it relates to — a Jira key, a repo, a topic (searchable)')

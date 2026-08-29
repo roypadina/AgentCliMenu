@@ -57,6 +57,11 @@ struct ContentView: View {
     @State private var hideDone = false
     @State private var annRemind = ""
     @State private var annDue = ""
+    /// Session whose resume command was just copied — flips the button to a tick.
+    @State private var copiedId: String?
+    @State private var profiles: [Profile] = []
+    /// Overrides which Claude account a resume uses; nil = the session's own.
+    @State private var profileOverride: Profile?
 
     private var query: String { search.trimmingCharacters(in: .whitespaces) }
 
@@ -368,6 +373,7 @@ struct ContentView: View {
         annNote = s.note ?? ""
         annRemind = ""
         annDue = ""
+        copiedId = nil
     }
 
     /// Hidden and deleted never leave the transcript — they only drop out of listings here.
@@ -457,7 +463,42 @@ struct ContentView: View {
                         if let b = s.gitBranch { Text("⎇ \(b)").font(.caption2).foregroundColor(.purple) }
                         if !s.cwdConfident { Text("⚠ cwd").font(.caption2).foregroundColor(.orange) }
                     }
-                    Text(s.id).font(.system(size: 10, design: .monospaced)).foregroundColor(.secondary).textSelection(.enabled)
+                    // Only surfaced on machines that actually have more than one Claude account.
+                    if profiles.count > 1, let acct = profileOverride?.account ?? s.account {
+                        HStack(spacing: 4) {
+                            Text("resumes as").font(.caption2).foregroundColor(.secondary)
+                            Menu {
+                                Button("This session's own account") { profileOverride = nil }
+                                Divider()
+                                ForEach(profiles) { p in
+                                    Button(p.account + (p.isPrimary ? "  (default)" : "")) { profileOverride = p }
+                                }
+                            } label: {
+                                Text(acct).font(.caption2)
+                            }
+                            .menuStyle(.borderlessButton).fixedSize()
+                            .foregroundColor(profileOverride == nil ? .blue : .orange)
+                            .help("Which Claude account this session resumes under")
+                        }
+                    }
+                    HStack(spacing: 6) {
+                        Text(s.id).font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(.secondary).textSelection(.enabled)
+                        Button {
+                            // the command to paste into another terminal — `agentctl resume`
+                            // restores the working directory and the right Claude profile
+                            let cmd = "agentctl resume \(s.id)"
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(cmd, forType: .string)
+                            copiedId = s.id
+                        } label: {
+                            Image(systemName: copiedId == s.id ? "checkmark" : "doc.on.doc")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundColor(copiedId == s.id ? .green : .secondary)
+                        .help("Copy `agentctl resume \(s.id)` — paste it in any terminal to pick this session back up")
+                    }
                     Text("started    \(fmtIso(s.startedAt))").font(.caption2).foregroundColor(.secondary)
                     Text("last used  \(fmtIso(s.lastUpdatedAt))").font(.caption2).foregroundColor(.secondary)
                     Text(tilde(s.cwd)).font(.caption2).foregroundColor(.secondary).lineLimit(2).textSelection(.enabled)
@@ -587,7 +628,7 @@ struct ContentView: View {
     /// row's own session so a not-yet-committed `selection` @State write can't resume a stale row.
     private func resumeSession(_ s: Session) {
         if !s.cwdConfident && confirmResumeId != s.id { confirmResumeId = s.id; return }
-        Cm.resume(id: s.id); onAction()
+        Cm.resume(id: s.id, profileHome: profileOverride?.home); onAction()
     }
     private func cancel() {
         if confirmResumeId != nil { confirmResumeId = nil; return }
@@ -635,6 +676,7 @@ struct ContentView: View {
             let p = try await Cm.projects()
             projects = p
             if selectedTool.isEmpty { selectedTool = p.defaultTool.isEmpty ? (p.tools.first?.name ?? "cld") : p.defaultTool }
+            profiles = (try? await Cm.profiles()) ?? []
         } catch { errorText = describe(error) }
     }
     private func loadSessions() async {

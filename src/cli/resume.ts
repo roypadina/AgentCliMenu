@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+import { isPrimaryHome } from '../core/profiles.js';
 import type { SessionRecord } from '../core/types.js';
 
 export class ResumeError extends Error {
@@ -25,12 +26,22 @@ export interface ResumeDeps {
 }
 
 /**
- * Pin CLAUDE_CONFIG_DIR to the session's own profile. Inheriting the ambient value resumes the
- * transcript under whichever profile launched the menu — and when two profiles share a
- * `projects/` dir that succeeds SILENTLY as the wrong account rather than failing.
+ * Pin CLAUDE_CONFIG_DIR to the session's own profile, so resuming does not inherit whichever
+ * profile happened to launch the menu.
+ *
+ * The default profile is the exception and must be UNSET rather than pinned: its config lives at
+ * `~/.claude.json`, beside the directory. Setting `CLAUDE_CONFIG_DIR=~/.claude` sends Claude to
+ * `~/.claude/.claude.json` instead — a different, usually logged-out profile — which shows up as
+ * an unexpected login prompt.
  */
 export function resumeEnv(s: SessionRecord, env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return s.configDir ? { ...env, CLAUDE_CONFIG_DIR: s.configDir } : env;
+  if (!s.configDir) return env;
+  if (isPrimaryHome(s.configDir)) {
+    const next = { ...env };
+    delete next.CLAUDE_CONFIG_DIR;
+    return next;
+  }
+  return { ...env, CLAUDE_CONFIG_DIR: s.configDir };
 }
 
 export function resume(

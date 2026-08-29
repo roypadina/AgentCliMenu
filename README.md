@@ -189,8 +189,15 @@ agentctl config --setup | --edit | --path         # manage the shared config
 **Resume** — `↑/↓` (or `j/k`) move · `pgup/pgdn` page · `g/G` first/last · `↵` resume · `p` peek · `r` recap ·
 `/` fuzzy-filter · `s` full-text search · `^r` refresh · `⇥` New · `?` help · `q` quit.
 Annotate the highlighted session in place: `e` name · `n` note · `l` labels · `f` flags · `t` reminder ·
-`u` due date · `d` done. `h` hides a session, `x` deletes it (twice), `v` shows the hidden ones,
-`H` shows/hides done ones. (`l` pre-fills the issue key from the branch.)
+`u` due date · `d` done. `c` copies a resume command, `h` hides a session, `x` deletes it (twice),
+`v` shows the hidden ones, `H` shows/hides done ones. (`l` pre-fills the issue key from the branch.)
+
+`space` marks sessions — `h`, `x` and `d` then act on every marked one at once, and the cursor stays
+where it was instead of jumping back to the top.
+
+`c` puts `agentctl resume <id>` on your clipboard — paste it in any other terminal to pick that
+session back up, working directory and Claude profile included. The menu-bar app has the same as a
+copy button next to the session id. Wide terminals also show a short id column in the list.
 
 Deleted sessions are deliberately **not reachable from the menu** — that is what makes deleting feel
 safe to do. Recover them with `agentctl delete --undo`, or from the menu-bar app's Deleted view.
@@ -250,7 +257,17 @@ runs  = "CLAUDE_CONFIG_DIR=~/.claude2 claude --dangerously-skip-permissions"
 label = " ⚡ Work account "
 ```
 
-`⇧⇥` cycles between them.
+`⇧⇥` cycles between them. The same trick works for any tool and any env var — Codex profiles
+included; `runs` is just a shell command.
+
+**Resuming** picks the account automatically: a session running under a side profile is resumed
+under it. For a session that has already exited, that information is not recorded anywhere — when
+profiles share a `projects/` dir (which the usual setup symlinks), nothing on disk says which
+account created it — so it falls back to your default. Override it with `a` in the menu, the account
+menu in the app, or `agentctl resume <id> --profile ricky@example.com`.
+
+**If you have one Claude account — the normal case — none of this appears.** No account row, no
+picker, no extra keys.
 
 ## The Mac GUI
 

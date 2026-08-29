@@ -13,6 +13,7 @@ import { getRecap, readCachedRecap } from '../core/recap.js';
 import { planTerminal, resolveCustomTemplate } from '../core/terminalLaunch.js';
 import { setGuiTerminal } from './config.js';
 import { shellQuote } from './launch.js';
+import { isPrimaryHome, profileAccount } from '../core/profiles.js';
 import {
   isReminderDue, isOverdue, isValidSessionId, normalizeFlag, normalizeLabel, parseWhen,
   readAnnotation, writeAnnotation,
@@ -117,7 +118,15 @@ export function registerGuiCommands(program: Command): void {
         remindDue: isReminderDue(r.annotation),
         dueAt: r.annotation?.dueAt ?? null,
         overdue: isOverdue(r.annotation),
+        account: r.configDir ? profileAccount(r.configDir) : null,
       }))));
+    });
+
+  gui.command('profiles')
+    .description('list the logged-in Claude accounts as JSON')
+    .action(async () => {
+      const { listProfiles } = await import('../core/profiles.js');
+      console.log(JSON.stringify(listProfiles()));
     });
 
   gui.command('new-dir')
@@ -144,7 +153,8 @@ export function registerGuiCommands(program: Command): void {
   gui.command('resume')
     .description('resume a session in the configured terminal')
     .requiredOption('--id <id>')
-    .action(async (opts: { id: string }) => {
+    .option('--profile <home>', 'Claude home to resume under')
+    .action(async (opts: { id: string; profile?: string }) => {
       const { config } = loadConfig();
       const matches = await getSession(opts.id);
       if (matches.length !== 1) {
@@ -159,9 +169,10 @@ export function registerGuiCommands(program: Command): void {
         process.exit(3);
       }
       const bin = process.env.AGENTCTL_CLAUDE_BIN ?? process.env.CCSM_CLAUDE_BIN ?? 'claude';
-      // Same rule as the TUI: run under the session's own profile, never the ambient one
-      // (see cli/resume.ts resumeEnv — a mismatch can silently use the wrong account).
-      const profile = s.configDir ? `CLAUDE_CONFIG_DIR=${shellQuote(s.configDir)} ` : '';
+      // Same rule as the TUI (see cli/resume.ts resumeEnv): pin a side profile, but never the
+      // default one — its config is ~/.claude.json, so pinning ~/.claude picks a logged-out stub.
+      const home = opts.profile ?? s.configDir;
+      const profile = home && !isPrimaryHome(home) ? `CLAUDE_CONFIG_DIR=${shellQuote(home)} ` : '';
       openSession(`${profile}${bin} --resume ${s.id} --dangerously-skip-permissions`, s.cwd, config);
       console.log(JSON.stringify({ ok: true, id: s.id, cwd: s.cwd }));
     });

@@ -27,6 +27,8 @@ struct Session: Codable, Identifiable {
     let remindAt: String?; let remindDue: Bool?
     let dueAt: String?; let overdue: Bool?
     let hidden: Bool?; let deleted: Bool?
+    /// Claude account this session would resume under.
+    let account: String?
 
     var tags: [String] { flags ?? [] }
     var tickets: [String] { labels ?? [] }
@@ -38,6 +40,10 @@ struct Session: Codable, Identifiable {
     var hasAnnotation: Bool {
         isDone || !tags.isEmpty || !tickets.isEmpty || note != nil || remindAt != nil || dueAt != nil
     }
+}
+struct Profile: Codable, Identifiable {
+    let home: String; let account: String; let isPrimary: Bool
+    var id: String { home }
 }
 struct RecapResponse: Codable {
     let ok: Bool; let text: String?; let generatedAt: String?; let fromCache: Bool?; let error: String?
@@ -173,7 +179,13 @@ enum Cm {
             if let completion { DispatchQueue.main.async(execute: completion) }
         }
     }
-    static func resume(id: String) { runVoid("resume --id '\(esc(id))'") }
+    static func profiles() async throws -> [Profile] { try await runAsync("profiles", [Profile].self) }
+    /// `profileHome` overrides which Claude account the session resumes under.
+    static func resume(id: String, profileHome: String? = nil) {
+        var args = "resume --id '\(esc(id))'"
+        if let profileHome { args += " --profile '\(esc(profileHome))'" }
+        runVoid(args)
+    }
     static func configGet() async throws -> ConfigDTO { try await runAsync("config-get", ConfigDTO.self) }
 
     /// Write the full config (shared with the TUI) by piping JSON to `agentctl gui config-save`.

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useApp, useInput, render as inkRender } from 'ink';
 import TextInput from 'ink-text-input';
 import { spawnSync } from 'node:child_process';
@@ -8,6 +8,8 @@ import { readTranscript } from '../core/transcript.js';
 import { searchSessions, type SearchMatch } from '../core/search.js';
 import { formatDate, timeAgo } from './format.js';
 import { resumeEnv } from './resume.js';
+import { copyToClipboard, resumeCommand } from '../core/clipboard.js';
+import { listProfiles, profileAccount, type Profile } from '../core/profiles.js';
 import { fuzzyRank } from '../core/fuzzy.js';
 import { getRecap, readCachedRecap, spawnRun } from '../core/recap.js';
 import { windowFor, scrollbar } from './viewport.js';
@@ -56,7 +58,8 @@ interface AppProps {
 export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps) {
   const { exit } = useApp();
 
-  const doResume = (s: SessionRecord) => {
+  const doResume = (raw: SessionRecord) => {
+    const s = profileOverride ? { ...raw, configDir: profileOverride.home } : raw;
     if (onResume) { onResume(s); return; }
     exit();
     const bin = process.env.AGENTCTL_CLAUDE_BIN ?? process.env.CCSM_CLAUDE_BIN ?? 'claude';
@@ -84,6 +87,15 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const [hideDone, setHideDone] = useState(false);
   const [sessionView, setSessionView] = useState<SessionView>('normal');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  /** Transient footer note after `c` — cleared by the next keypress. */
+  const [copied, setCopied] = useState<string | null>(null);
+  /** Claude accounts on this machine; `a` cycles an override for the next resume. */
+  const profiles = useMemo(() => listProfiles(), []);
+  const [profileOverride, setProfileOverride] = useState<Profile | null>(null);
+  /** Single-account machines — the overwhelming majority — never see any of this. */
+  const multiProfile = profiles.length > 1;
+  /** space-marked sessions; hide/delete/done act on these when non-empty. */
+  const [marked, setMarked] = useState<Set<string>>(new Set());
 
   // Hidden and deleted are listing preferences only — the transcript is never touched, and the
   // records array holds everything so switching views costs nothing.
@@ -110,6 +122,18 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const annotate = (s: SessionRecord, patch: AnnotationPatch) => {
     const a = writeAnnotation(s.id, patch);
     setRecords(rs => rs.map(r => (r.id === s.id ? { ...r, annotation: a, name: a.name ?? r.transcriptName } : r)));
+  };
+
+  /**
+   * Apply to the marked sessions, or the highlighted one when nothing is marked. The cursor stays
+   * where it is (clamped) rather than jumping to the top — you are usually part-way down a long
+   * list and want to carry on from the same place.
+   */
+  const annotateTargets = (patch: AnnotationPatch) => {
+    const targets = marked.size > 0 ? filtered.filter(r => marked.has(r.id)) : [filtered[clamped]];
+    for (const t of targets) if (t) annotate(t, patch);
+    if (marked.size > 0) setMarked(new Set());
+    setCursor(Math.max(0, Math.min(clamped, filtered.length - targets.length - 1)));
   };
 
   const openPrompt = (kind: PromptKind) => {
@@ -302,11 +326,13 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
       }
       return;
     }
+    if (copied) setCopied(null);
     if (key.tab && onSwitchTab) { onSwitchTab(); return; }
     if (input === 'q') { quit(); return; }
     if (input === '?') { setMode('help'); return; }
     if (key.escape) {
       if (confirmDeleteId) { setConfirmDeleteId(null); return; }
+      if (marked.size > 0) { setMarked(new Set()); return; }
       if (confirmResumeId) { setConfirmResumeId(null); return; }
       if (filter) { setFilter(''); setCursor(0); return; } // clear filter first (matches New + GUI)
       back();
@@ -329,24 +355,52 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     if (input === 'u') { openPrompt('due'); return; }
     if (input === 'd') {
       const sel = filtered[clamped];
-      if (sel) annotate(sel, { done: !sel.annotation?.done });
+      if (!sel && marked.size === 0) return;
+      annotateTargets({ done: marked.size > 0 ? true : !sel!.annotation?.done });
       return;
     }
     if (input === 'H') { setHideDone(v => !v); setCursor(0); return; }
+    if (input === ' ') {
+      const sel = filtered[clamped];
+      if (!sel) return;
+      setMarked(prev => {
+        const next = new Set(prev);
+        if (next.has(sel.id)) next.delete(sel.id); else next.add(sel.id);
+        return next;
+      });
+      setCursor(Math.min(filtered.length - 1, clamped + 1));   // marking walks down the list
+      return;
+    }
     if (input === 'h') {
       const sel = filtered[clamped];
-      if (sel) { annotate(sel, { hidden: !sel.annotation?.hidden }); setCursor(0); }
+      if (!sel && marked.size === 0) return;
+      annotateTargets({ hidden: marked.size > 0 ? true : !sel!.annotation?.hidden });
       return;
     }
     if (input === 'x') {
       const sel = filtered[clamped];
-      if (!sel) return;
+      if (!sel && marked.size === 0) return;
       // Deleting removes it from every view this screen can show, so confirm, and recover
-      // elsewhere: `agentctl delete --undo` or the GUI's Deleted view.
-      if (confirmDeleteId !== sel.id) { setConfirmDeleteId(sel.id); return; }
-      annotate(sel, { deleted: true });
+      // elsewhere: `agentctl delete --undo` or the app's Deleted view.
+      const token = marked.size > 0 ? `marked:${marked.size}` : sel!.id;
+      if (confirmDeleteId !== token) { setConfirmDeleteId(token); return; }
+      annotateTargets({ deleted: true });
       setConfirmDeleteId(null);
-      setCursor(0);
+      return;
+    }
+    if (input === 'a') {
+      if (profiles.length < 2) return;
+      setProfileOverride(cur => {
+        const i = cur ? profiles.findIndex(p => p.home === cur.home) : -1;
+        return i + 1 >= profiles.length ? null : profiles[i + 1];
+      });
+      return;
+    }
+    if (input === 'c') {
+      const sel = filtered[clamped];
+      if (!sel) return;
+      const cmd = resumeCommand(sel.id);
+      setCopied(copyToClipboard(cmd) ? cmd : 'no clipboard tool found');
       return;
     }
     if (input === 'v') {
@@ -392,7 +446,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const showExtras = cols >= 70;
   const wBranch = cols >= 90 ? 12 : 8;
   const wUsed = 14; // "Jun 09 10:43"
-  const fixedCols = 2 + 2 + (showExtras ? 7 : 0) + 1 + wBranch + 1 + wUsed + 1 + 2;
+  const showId = cols >= 110;
+  const fixedCols = 2 + 2 + (showExtras ? 7 : 0) + (showId ? 9 : 0) + 1 + wBranch + 1 + wUsed + 1 + 2;
   const wName = Math.max(10, Math.min(44, Math.floor((tableInner - fixedCols) * 0.6)));
   // The list is the ONLY elastic block on screen, so its height is whatever the fixed chrome
   // and the (content-sized) details pane leave over. Guessing a constant here is what pushed
@@ -407,7 +462,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   // pushes the header off screen. Size its variable parts against the leftover budget, and drop
   // the pane entirely on a terminal too short for even its fixed rows.
   const detailsFixed = sel
-    ? 2 + 4 + (sel.annotation ? 1 : 0) + (confirmResumeId === sel.id ? 1 : 0) + 1
+    ? 2 + 4 + (multiProfile ? 1 : 0) + (sel.annotation ? 1 : 0) + (confirmResumeId === sel.id ? 1 : 0) + 1
     : 0;
   const detailsBudget = rows - CHROME - promptHeight - MIN_LIST;
   const showDetails = !!sel && detailsBudget >= detailsFixed;
@@ -441,6 +496,13 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         <Text dimColor> sessions  ·  </Text>
         <Text color="green">{activeCount}</Text>
         <Text dimColor> active</Text>
+        {marked.size > 0 ? (
+          <>
+            <Text dimColor>  ·  </Text>
+            <Text color="green" bold>✓ {marked.size}</Text>
+            <Text dimColor> marked</Text>
+          </>
+        ) : null}
         {dueCount > 0 ? (
           <>
             <Text dimColor>  ·  </Text>
@@ -519,9 +581,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
       {mode === 'list' || mode === 'filter' || mode === 'annotate' ? (
         <Box marginTop={1} flexDirection="column">
           <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
-            <TableHeader wName={wName} wBranch={wBranch} wUsed={wUsed} extras={showExtras} />
+            <TableHeader wName={wName} wBranch={wBranch} wUsed={wUsed} extras={showExtras} showId={showId} />
             {view.map((r, i) => (
-              <Row key={r.id} r={r} selected={start + i === clamped} wName={wName} wBranch={wBranch} wUsed={wUsed} bar={listBar[i]} extras={showExtras} />
+              <Row key={r.id} r={r} selected={start + i === clamped} marked={marked.has(r.id)} wName={wName} wBranch={wBranch} wUsed={wUsed} bar={listBar[i]} extras={showExtras} showId={showId} />
             ))}
             {filtered.length === 0 ? (
               <Text dimColor>{records.length === 0 ? '(no sessions yet)' : `(no matches for "${filter}")`}</Text>
@@ -532,7 +594,10 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
               s={sel}
               recap={selRecap}
               confirming={confirmResumeId === sel.id}
-              deleting={confirmDeleteId === sel.id}
+              deleting={confirmDeleteId === sel.id || !!confirmDeleteId?.startsWith('marked:')}
+              deletingCount={confirmDeleteId?.startsWith('marked:') ? marked.size : 1}
+              account={multiProfile ? (profileOverride?.account ?? (sel.configDir ? profileAccount(sel.configDir) : null)) : null}
+              overridden={!!profileOverride}
               maxNoteLines={noteLines}
               maxRecapLines={recapBodyLines}
               narrow={cols < 70}
@@ -622,6 +687,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
           <HelpRow k="t / u" v="reminder / due date" />
           <HelpRow k="" v="(l pre-fills the issue key from the branch)" />
           <HelpRow k="d / H" v="toggle done / show-hide done sessions" />
+          <HelpRow k="space" v="mark a session — h/x/d then act on every marked one" />
+          <HelpRow k="c" v="copy `agentctl resume <id>` to the clipboard" />
+          {multiProfile ? <HelpRow k="a" v="cycle which Claude account the resume uses" /> : null}
           <HelpRow k="h" v="hide this session — v shows hidden ones" />
           <HelpRow k="x" v="delete this session (press twice) — undo from the CLI or the app" />
           <HelpRow k="v" v="show hidden sessions (deleted are CLI/app only)" />
@@ -717,7 +785,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
 
       {mode !== 'peek' && mode !== 'search-input' && mode !== 'help' ? (
         <Box marginTop={1}>
-          {mode === 'search-results' ? (
+          {copied ? (
+            <Text color="green" wrap="truncate-end">✓ copied to clipboard: {copied}</Text>
+          ) : mode === 'search-results' ? (
             <>
               <Text dimColor>↑/↓ </Text>
               <Text color="white">move</Text>
@@ -746,6 +816,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
               {cols >= 70 ? (<><Text dimColor> · s </Text><Text color="white">search</Text></>) : null}
               {cols >= 100 ? (
                 <>
+                  <Text dimColor> · space </Text><Text color="white">mark</Text>
+                  <Text dimColor> · c </Text><Text color="white">copy</Text>
                   <Text dimColor> · h </Text><Text color="white">hide</Text>
                   <Text dimColor> · x </Text><Text color="white">delete</Text>
                   <Text dimColor> · v </Text><Text color="white">hidden</Text>
@@ -762,14 +834,15 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
               <Text dimColor> · q </Text><Text color="white">quit</Text>
             </>
           )}
+
         </Box>
       ) : null}
     </Box>
   );
 }
 
-function TableHeader({ wName, wBranch, wUsed, extras }: {
-  wName: number; wBranch: number; wUsed: number; extras: boolean;
+function TableHeader({ wName, wBranch, wUsed, extras, showId }: {
+  wName: number; wBranch: number; wUsed: number; extras: boolean; showId: boolean;
 }) {
   return (
     <Box>
@@ -777,6 +850,7 @@ function TableHeader({ wName, wBranch, wUsed, extras }: {
       {extras ? <Box width={2} flexShrink={0}><Text dimColor bold> </Text></Box> : null}
       <Box width={wName} marginRight={1} flexShrink={0}><Text dimColor bold>NAME</Text></Box>
       {extras ? <Box width={5} flexShrink={0}><Text dimColor bold> </Text></Box> : null}
+      {showId ? <Box width={9} flexShrink={0}><Text dimColor bold>ID</Text></Box> : null}
       <Box width={wBranch} marginRight={1} flexShrink={0}><Text dimColor bold>BRANCH</Text></Box>
       <Box width={wUsed} marginRight={1} flexShrink={0}><Text dimColor bold>LAST USED</Text></Box>
       <Box flexGrow={1} minWidth={0}><Text dimColor bold>CWD</Text></Box>
@@ -798,13 +872,18 @@ function badgeMarks(r: SessionRecord): Array<{ ch: string; color: string }> {
   return out;
 }
 
-function Row({ r, selected, wName, wBranch, wUsed, bar, extras }: {
-  r: SessionRecord; selected: boolean; wName: number; wBranch: number; wUsed: number;
-  bar?: string; extras: boolean;
+function Row({ r, selected, marked, wName, wBranch, wUsed, bar, extras, showId }: {
+  r: SessionRecord; selected: boolean; marked: boolean;
+  wName: number; wBranch: number; wUsed: number;
+  bar?: string; extras: boolean; showId: boolean;
 }) {
   return (
     <Box>
-      <Box width={2} flexShrink={0}><Text bold color={selected ? 'yellow' : 'gray'}>{selected ? '▶' : ' '}</Text></Box>
+      <Box width={2} flexShrink={0}>
+        <Text bold color={marked ? 'green' : selected ? 'yellow' : 'gray'}>
+          {marked ? '✓' : selected ? '▶' : ' '}
+        </Text>
+      </Box>
       <Box width={2} flexShrink={0}><Text color={STATUS_COLOR[r.status]} bold>{STATUS_DOT[r.status]}</Text></Box>
       {extras ? <Box width={2} flexShrink={0}><Text bold color="yellow">{r.cwdDecodeConfident ? ' ' : '!'}</Text></Box> : null}
       <Box width={wName} marginRight={1} flexShrink={0}>
@@ -815,6 +894,7 @@ function Row({ r, selected, wName, wBranch, wUsed, bar, extras }: {
           {badgeMarks(r).map((m, i) => <Text key={i} color={m.color}>{m.ch}</Text>)}
         </Box>
       ) : null}
+      {showId ? <Box width={9} flexShrink={0}><Text dimColor>{r.id.slice(0, 8)}</Text></Box> : null}
       <Box width={wBranch} marginRight={1} flexShrink={0}><Text color="magenta" wrap="truncate-end">{r.gitBranch ?? '–'}</Text></Box>
       <Box width={wUsed} marginRight={1} flexShrink={0}><Text color="cyan" wrap="truncate-end">{formatDate(r.lastUpdatedAt)}</Text></Box>
       <Box flexGrow={1} minWidth={0}><Text color="green" wrap="truncate-middle">{tildify(r.cwd)}</Text></Box>
@@ -824,8 +904,12 @@ function Row({ r, selected, wName, wBranch, wUsed, bar, extras }: {
 }
 
 /** Always-visible "more info" for the highlighted row (Roy's ask): full metadata + last-used + recap. */
-function DetailsPane({ s, recap, confirming, deleting, maxNoteLines, maxRecapLines, narrow }: {
+function DetailsPane({ s, recap, confirming, deleting, deletingCount, account, overridden, maxNoteLines, maxRecapLines, narrow }: {
   s: SessionRecord; recap?: RecapState; confirming: boolean; deleting: boolean;
+  /** How many sessions the pending delete would take — >1 when marks are set. */
+  deletingCount: number;
+  /** Account this session will resume under, and whether `a` overrode it. */
+  account: string | null; overridden: boolean;
   /** Line budgets computed by the caller — the pane must not render more than the screen has. */
   maxNoteLines: number; maxRecapLines: number;
   /** Too narrow for both timestamps on one row; keep the one that matters. */
@@ -849,6 +933,13 @@ function DetailsPane({ s, recap, confirming, deleting, maxNoteLines, maxRecapLin
         {s.gitBranch && !narrow ? (<><Text dimColor>   ⎇ </Text><Text color="magenta">{s.gitBranch}</Text></>) : null}
         {!s.cwdDecodeConfident ? <Text color="yellow">{narrow ? '  ⚠' : '   ⚠ cwd uncertain'}</Text> : null}
       </Box>
+      {account ? (
+        <Box>
+          <Text dimColor>resumes as </Text>
+          <Text color={overridden ? 'yellow' : 'blue'}>{account}</Text>
+          {overridden ? <Text color="yellow"> (a to change)</Text> : null}
+        </Box>
+      ) : null}
       <Box>
         {narrow ? null : (
           <>
@@ -896,7 +987,7 @@ function DetailsPane({ s, recap, confirming, deleting, maxNoteLines, maxRecapLin
       </Box>
       {deleting ? (
         <Box>
-          <Text color="red">x again to delete — </Text>
+          <Text color="red">x again to delete {deletingCount > 1 ? `${deletingCount} marked sessions` : 'this'} — </Text>
           <Text dimColor>gone from this menu. Recover with `agentctl delete --undo` or the app's Deleted view. The transcript is untouched.</Text>
         </Box>
       ) : null}

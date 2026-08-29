@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resume, ResumeError } from '../../src/cli/resume.js';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { resume, resumeEnv, ResumeError } from '../../src/cli/resume.js';
 import type { SessionRecord } from '../../src/core/types.js';
 
 function record(overrides: Partial<SessionRecord> = {}): SessionRecord {
@@ -86,5 +88,22 @@ describe('profile pinning', () => {
     const spawn = vi.fn().mockReturnValue({ status: 0 });
     resume(record(), {}, { exists: () => true, spawn: spawn as never, exit: (() => undefined) as never });
     expect(spawn.mock.calls[0][2].env).toBe(process.env);
+  });
+});
+
+describe('the default profile must not be pinned', () => {
+  it('unsets CLAUDE_CONFIG_DIR for the primary home, even when one is ambient', () => {
+    const env = resumeEnv(
+      record({ configDir: join(homedir(), '.claude') }),
+      { PATH: '/bin', CLAUDE_CONFIG_DIR: '/Users/x/.claude3' },
+    );
+    // ~/.claude.json is the primary's config; pinning ~/.claude would pick the wrong one
+    expect('CLAUDE_CONFIG_DIR' in env).toBe(false);
+    expect(env.PATH).toBe('/bin');
+  });
+
+  it('still pins a real side profile', () => {
+    const env = resumeEnv(record({ configDir: '/Users/x/.claude3' }), { PATH: '/bin' });
+    expect(env.CLAUDE_CONFIG_DIR).toBe('/Users/x/.claude3');
   });
 });

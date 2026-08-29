@@ -3,6 +3,34 @@
 All notable changes to Agentctl are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.7.0] — 2026-08-29
+
+### Fixed
+
+- **Resuming could ask you to log in.** 0.5.0 started pinning `CLAUDE_CONFIG_DIR` to the profile a
+  session was found under. For the *default* profile that is wrong: its config lives at
+  `~/.claude.json`, beside the directory, so pinning `~/.claude` sent Claude to
+  `~/.claude/.claude.json` — a different, usually logged-out profile. The default profile is now
+  left unpinned, as Claude Code itself expects; side profiles are still pinned.
+
+### Added
+
+- **Choose which Claude account a session resumes under.** `agentctl profiles` lists them;
+  `agentctl resume <id> --profile <email|name|path>` overrides; `a` cycles it in the menu and the
+  app has an account menu. Which account owns an already-exited session is not recorded anywhere
+  when profiles share a `projects/` dir, so the override is the answer rather than a better guess.
+  **On a single-account machine none of this is shown.**
+- **Multi-select.** `space` marks sessions in the menu; `h`, `x` and `d` then act on every marked
+  one. The CLI takes several ids too: `agentctl hide a1b2 c3d4 e5f6`. Prefixes resolve against a
+  single scan — resolving them concurrently opened enough files at once to make some come back
+  empty.
+- **The cursor stays put** after hiding or deleting, instead of jumping to the top of the list.
+- **Copy a resume command to the clipboard.** `c` in the terminal menu, or the copy button beside
+  the session id in the app, puts `agentctl resume <id>` on your clipboard — paste it in any other
+  terminal to pick that session back up, with its working directory and Claude profile intact.
+- **A short session-id column** in the terminal list, on terminals at least 110 columns wide. The
+  full id was already in the details pane; now you can see it at a glance while scanning.
+
 ## [0.6.2] — 2026-08-29
 
 ### Changed

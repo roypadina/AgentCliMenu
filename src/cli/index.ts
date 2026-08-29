@@ -85,9 +85,20 @@ export function buildProgram(): Command {
     .command('resume [id]')
     .option('--yes')
     .option('--cwd <path>')
+    .option('-p, --profile <name>', 'Claude account to resume under: an email, a home path, or a profile name')
     .action(async (id: string | undefined, opts) => {
       if (!id) { const { runApp } = await import('./router.js'); await runApp('resume'); return; }
       const s = await resolveId(id);
+      if (opts.profile) {
+        const { resolveProfile, listProfiles } = await import('../core/profiles.js');
+        const p = resolveProfile(opts.profile);
+        if (!p) {
+          console.error(`no logged-in Claude profile matches '${opts.profile}'. Known:`);
+          for (const known of listProfiles()) console.error(`  ${known.account}  (${known.home})`);
+          process.exit(2);
+        }
+        s.configDir = p.home;
+      }
       try {
         resume(s, { yes: opts.yes, cwdOverride: opts.cwd });
       } catch (e) {
@@ -100,6 +111,20 @@ export function buildProgram(): Command {
     .command('new')
     .description('open the New-session launcher')
     .action(async () => { const { runApp } = await import('./router.js'); await runApp('new'); });
+
+  program
+    .command('profiles')
+    .description('list the Claude accounts on this machine (for `resume --profile`)')
+    .option('--json')
+    .action(async (opts: { json?: boolean }) => {
+      const { listProfiles } = await import('../core/profiles.js');
+      const all = listProfiles();
+      if (opts.json) { console.log(JSON.stringify(all, null, 2)); return; }
+      if (all.length === 0) { console.log('no logged-in Claude profiles found'); return; }
+      for (const p of all) {
+        console.log(`${p.account.padEnd(28)} ${p.home}${p.isPrimary ? '   (default)' : ''}`);
+      }
+    });
 
   program
     .command('path <id>')
