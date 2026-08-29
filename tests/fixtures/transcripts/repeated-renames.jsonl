@@ -1,0 +1,4 @@
+{"type":"user","message":{"role":"user","content":"hello"},"timestamp":"2026-08-29T10:00:00.000Z"}
+{"type":"custom-title","customTitle":"first name","sessionId":"aaaa"}
+{"type":"custom-title","customTitle":"second name","sessionId":"aaaa"}
+{"type":"custom-title","customTitle":"third and final name","sessionId":"aaaa"}

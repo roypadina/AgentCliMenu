@@ -70,3 +70,21 @@ describe('resume', () => {
     ).toThrow(/not found on PATH/);
   });
 });
+
+describe('profile pinning', () => {
+  it('resumes under the session own profile, not the ambient one', () => {
+    const spawn = vi.fn().mockReturnValue({ status: 0 });
+    resume(
+      record({ configDir: '/Users/x/.claude3' }),
+      {},
+      { exists: () => true, spawn: spawn as never, exit: (() => undefined) as never },
+    );
+    expect(spawn.mock.calls[0][2].env.CLAUDE_CONFIG_DIR).toBe('/Users/x/.claude3');
+  });
+
+  it('leaves the environment alone when the profile is unknown', () => {
+    const spawn = vi.fn().mockReturnValue({ status: 0 });
+    resume(record(), {}, { exists: () => true, spawn: spawn as never, exit: (() => undefined) as never });
+    expect(spawn.mock.calls[0][2].env).toBe(process.env);
+  });
+});

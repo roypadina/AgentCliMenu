@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { sessionsDirs } from './paths.js';
 import type { LiveSession } from './types.js';
@@ -26,7 +26,7 @@ export function readLiveSessions(): LiveSession[] {
           typeof data.updatedAt !== 'number' ||
           (data.status !== 'busy' && data.status !== 'idle')
         ) continue;
-        out.push(data as LiveSession);
+        out.push({ ...(data as LiveSession), profile: dirname(dir) });
       } catch {
         // skip corrupt
       }

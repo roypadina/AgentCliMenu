@@ -17,6 +17,12 @@ export interface SessionRecord {
   pid?: number;
   version?: string;
   gitBranch?: string;
+  /**
+   * Claude home this session belongs to (`~/.claude`, `~/.claude3`, …). Resuming must run under
+   * it — a mismatch silently resumes the transcript as the WRONG ACCOUNT when profiles share a
+   * `projects/` dir. Undetectable for a dead session under symlinked profiles; see core/paths.ts.
+   */
+  configDir?: string;
   /** User annotation (name override already applied to `name`). */
   annotation?: Annotation;
 }
@@ -49,6 +55,8 @@ export interface LiveSession {
   updatedAt: number;
   status: 'busy' | 'idle';
   version?: string;
+  /** Claude home the pid file was found in — authoritative profile while the process lives. */
+  profile?: string;
 }
 
 export type TranscriptRole = 'user' | 'assistant' | 'system' | 'tool';

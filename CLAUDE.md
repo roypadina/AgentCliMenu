@@ -31,6 +31,8 @@ src/core/                 zero ink/react imports — pure data
   search.ts               async generator full-text search across all sessions
   sessionRepo.ts          orchestrator: listSessions / getSession
   transcript.ts           JSONL → TranscriptTurn[] (default/full/head+tail modes)
+  annotations.ts          user metadata per session (name/note/flags/done/reminder), one JSON
+                          file each under ~/.config/agentclimenu/annotations/, atomic writes
   recap.ts                on-demand AI recap: claude -p --model haiku on head+tail excerpt, cached to ~/.config/agentclimenu/recaps/<id>.md (DI'd I/O + spawn)
   config/                 AgentCliMenu launcher config (TOML, smol-toml)
     types.ts              GroupConfig/ToolConfig/IdeConfig/ThemeConfig, ConfigError
@@ -65,6 +67,16 @@ docs/superpowers/
 - **TDD where it helps**. New `src/core/` modules ship with `tests/core/<name>.test.ts`. UI work in `tui.tsx` gets smoke tests only — full UX validation is manual in a real terminal.
 - **Cwd encoding is ambiguous**. `~/.claude/projects/<encoded-cwd>/` uses `-` as both the leading marker and the path separator. Real `-` in segment names (e.g. `My-App-Repo`) collides. `decode.ts` recursively walks candidates with `existsSync` pruning. When no match, returns `cwdDecodeConfident: false` — UI must surface this and `resume` refuses without `--cwd <override>`.
 - **`--dangerously-skip-permissions` is hardcoded** into `cli/resume.ts`. Never expose a config flag to remove it. Only `resume` adds it; `peek` / read paths never do.
+- **Resume pins `CLAUDE_CONFIG_DIR`** to the session's own profile (`resumeEnv`). Inheriting the
+  ambient value resumes the transcript under whichever profile launched the menu; when two
+  profiles share a `projects/` dir that *succeeds silently as the wrong account* rather than
+  failing. A live session's pid file names the true profile; for a dead session under symlinked
+  profiles the origin is unrecoverable — nothing on disk records it.
+- **Renaming goes through the annotation store, never the JSONL.** Claude Code re-flushes its
+  in-memory title after almost every turn, so a `custom-title` line appended by an outside tool
+  is silently reverted on a live session. `Annotation.name` overrides the transcript title and
+  survives any number of renames; `SessionRecord.transcriptName` keeps the original for when the
+  override is cleared. (`jsonlScan` itself is already last-write-wins for repeated `/rename`.)
 - **Session names** come from JSONL in priority order: `type:custom-title.customTitle` (from `/rename`) → `type:ai-title.aiTitle` (auto-generated) → first user prompt (with tag stripping) → `(no prompt yet)`.
 - **Status detection**: a session is `busy`/`idle` only when a matching `<profile>/sessions/<pid>.json` file exists, `kill -0 <pid>` succeeds, and `ps -o comm= -p <pid>` matches `/claude/i`. Otherwise `inactive`.
 - **Scan every Claude profile.** `CLAUDE_CONFIG_DIR` lets one machine run several homes (`~/.claude`, `~/.claude2`, `~/.claude-work`). Each keeps its own `sessions/` dir, so scanning only `~/.claude` reports every side-profile session as `inactive`. `claudeHomes()` globs `~/.claude*` dirs (primary first); `projectsDirs()`/`sessionsDirs()` map + realpath-dedupe them (profiles often symlink `projects/` to the primary — without the dedupe every session would list twice). `CCSM_HOME` still pins the scan to a single home.
@@ -74,7 +86,11 @@ docs/superpowers/
 - **Config lives at `~/.config/agentclimenu/config.toml`** (chain: `$AGENTCLIMENU_CONFIG` → `$XDG_CONFIG_HOME/agentclimenu` → `~/.config/agentclimenu`). `$CLD_CONFIG` is intentionally NOT honored — clean break from cld.
 - **`smol-toml`** is the one justified extra dep (TOML is core to New, not a one-off helper). It is TOML-1.0 strict; lax cld configs may need a re-seed (`agent-cli-menu config --setup`).
 - **Shell var is lowercase `dir`** — IDE `cmd` / tool `runs` reference `$dir` (matching cld's `eval`). The launch executor sets `dir` (lowercase), shell-quoted, and runs via `${SHELL:-/bin/zsh} -c` (NOT `-lc` — no rc re-source).
-- **New rows show git branch only** (`readGitBranch`, zero-spawn). No dirty count (would require shelling out per row).
+- **New rows show git branch always, and a `±N` dirty count for the highlighted row only.**
+  `readGitBranch` is zero-spawn and safe on the scan path; `countDirty` (`git status --porcelain`)
+  is the one sanctioned spawn and must stay debounced + limited to the selection.
+- **Per-profile launching needs no code** — a `[[tool]]` whose `runs` starts with
+  `CLAUDE_CONFIG_DIR=~/.claudeN` works, because `runs` goes through `${SHELL} -c`.
 - **Reserved keys** (`enter ctrl-f ctrl-p ctrl-t ctrl-n`) are owned by the New screen and passed into `validateConfig`; a colliding `[[ide]].key` is dropped with a warning, never a throw.
 - **ink→spawn handoff:** never `spawnSync` inside a `useInput` callback. Screens set a module-level pending launch + `exit()`; the runner `await waitUntilExit()`, drains stdin (`setImmediate` + `pause` + `setRawMode(false)`), then spawns. (ink 5.2.1 `unmount()` is synchronous; the real hazard is stdin type-ahead drain.)
 

@@ -7,6 +7,7 @@ import { listSessions } from '../core/sessionRepo.js';
 import { readTranscript } from '../core/transcript.js';
 import { searchSessions, type SearchMatch } from '../core/search.js';
 import { formatDate, timeAgo } from './format.js';
+import { resumeEnv } from './resume.js';
 import { fuzzyRank } from '../core/fuzzy.js';
 import { getRecap, readCachedRecap, spawnRun } from '../core/recap.js';
 import { windowFor, scrollbar } from './viewport.js';
@@ -56,7 +57,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     exit();
     const bin = process.env.CCSM_CLAUDE_BIN ?? 'claude';
     spawnSync(bin, ['--resume', s.id, '--dangerously-skip-permissions'], {
-      cwd: s.cwd, stdio: 'inherit', env: process.env,
+      cwd: s.cwd, stdio: 'inherit', env: resumeEnv(s),
     });
   };
   const quit = () => { if (onQuit) onQuit(); else exit(); };

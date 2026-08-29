@@ -44,3 +44,10 @@ describe('scanJsonl', () => {
     expect(r.firstTimestamp?.toISOString()).toBe('2026-06-04T12:12:49.361Z');
   });
 });
+
+describe('repeated renames', () => {
+  it('takes the last custom-title, so a session can be renamed any number of times', async () => {
+    const out = await scanJsonl('tests/fixtures/transcripts/repeated-renames.jsonl');
+    expect(out.customTitle).toBe('third and final name');
+  });
+});

@@ -1,5 +1,5 @@
 import { readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { projectsDirs } from './paths.js';
 import { decodeCwd } from './decode.js';
 import { scanJsonl } from './jsonlScan.js';
@@ -37,7 +37,7 @@ export async function listSessions(opts: ListOptions = {}): Promise<SessionRecor
         const jsonlPath = join(projectPath, file);
         const st = statSync(jsonlPath);
         const scan = await scanJsonl(jsonlPath);
-        const rec = buildRecord(id, jsonlPath, st, scan, decoded, live.get(id) ?? null, annotations.get(id));
+        const rec = buildRecord(id, jsonlPath, st, scan, decoded, live.get(id) ?? null, annotations.get(id), dirname(root));
         if (opts.activeOnly && !rec.active) continue;
         out.push(rec);
       }
@@ -61,6 +61,7 @@ function buildRecord(
   decoded: ReturnType<typeof decodeCwd>,
   live: LiveSession | null,
   annotation: Annotation | undefined,
+  configDir: string,
 ): SessionRecord {
   const transcriptName = scan.customTitle ?? scan.aiTitle ?? scan.firstPrompt ?? '(no prompt yet)';
   return {
@@ -78,6 +79,8 @@ function buildRecord(
     pid: live?.pid,
     version: live?.version,
     gitBranch: readGitBranch(live?.cwd ?? decoded.cwd) ?? undefined,
+    // A live session's pid file pins the real profile; otherwise fall back to the scan root.
+    configDir: live?.profile ?? configDir,
     annotation,
   };
 }

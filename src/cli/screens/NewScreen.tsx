@@ -83,7 +83,10 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
 
   // Viewport: window the header+dir rows around the selection so long lists don't overflow.
   const termRows = process.stdout.rows ?? 30;
-  const maxVisible = Math.max(4, termRows - 9); // header + warnings + nd/footer + affordances
+  // Every conditional block above/below the list has to be paid for, or the tab bar scrolls off:
+  // tab bar 2 + title 1 + gap 1 + border 2 + column header 1 + context header 1 + footer 2.
+  const chrome = 10 + (warnings.length > 0 ? 1 : 0) + (mode === 'nd-base' || mode === 'nd-name' ? 2 : 0);
+  const maxVisible = Math.max(4, termRows - chrome);
   const colsNew = process.stdout.columns ?? 100;
   const wBranchNew = 16;
   const wDirtyNew = 5;

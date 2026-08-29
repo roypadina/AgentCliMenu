@@ -24,6 +24,15 @@ export interface ResumeDeps {
   exit?: (code: number) => never;
 }
 
+/**
+ * Pin CLAUDE_CONFIG_DIR to the session's own profile. Inheriting the ambient value resumes the
+ * transcript under whichever profile launched the menu — and when two profiles share a
+ * `projects/` dir that succeeds SILENTLY as the wrong account rather than failing.
+ */
+export function resumeEnv(s: SessionRecord, env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return s.configDir ? { ...env, CLAUDE_CONFIG_DIR: s.configDir } : env;
+}
+
 export function resume(
   s: SessionRecord,
   opts: ResumeOptions = {},
@@ -44,7 +53,7 @@ export function resume(
   const child = spawn(
     bin,
     ['--resume', s.id, '--dangerously-skip-permissions'],
-    { cwd: targetCwd, stdio: 'inherit', env: process.env },
+    { cwd: targetCwd, stdio: 'inherit', env: resumeEnv(s) },
   );
   const err = child.error as NodeJS.ErrnoException | undefined;
   if (err && err.code === 'ENOENT') {

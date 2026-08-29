@@ -31,6 +31,15 @@ runs  = "codex --dangerously-bypass-approvals-and-sandbox"
 label = " ✦ Codex "
 color = "#A855F7"
 
+# Several Claude accounts on one machine? Each lives in its own CLAUDE_CONFIG_DIR. `runs` goes
+# through the shell, so an env prefix is all it takes — add one tool per profile and cycle them
+# with ⇧⇥. Resume already picks the right profile on its own.
+# [[tool]]
+# name  = "work"
+# runs  = "CLAUDE_CONFIG_DIR=~/.claude2 claude --dangerously-skip-permissions"
+# label = " ⚡ Work account "
+# color = "#4EA37A"
+
 # ─── IDEs ────────────────────────────────────────────────────────────────────
 # Each IDE binds an fzf-style ctrl-key: opens the editor, then launches the tool.
 # `cmd` is run via the shell with $dir = the selected absolute path.
