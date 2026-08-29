@@ -84,9 +84,11 @@ struct ContentView: View {
     /// Measured width of the session list — rows are as wide as it is. The branch drops below
     /// 400pt, which is where a long branch stops fitting beside a path on line 2.
     @State private var listWidth: CGFloat = 0
-    /// A session whose shelf write is in flight. The row stays on screen for the whole shell
-    /// round trip, so without this a second keypress acts on whatever slides underneath it.
-    @State private var pendingShelfId: String?
+    /// A session whose write is in flight. The row stays on screen for the whole shell round
+    /// trip, so without this a second keypress acts on whatever slides underneath it. It covers
+    /// done as well as the shelf: with the done filter on, checking a session off removes its row
+    /// exactly as a shelf move does.
+    @State private var pendingWriteId: String?
     /// Transient footer message — where a row just went, mostly.
     @State private var footerNote: String?
     @State private var noteToken = 0
@@ -518,17 +520,18 @@ struct ContentView: View {
     }
 
     private func moveToShelf(_ s: Session, _ shelf: String) {
-        pendingShelfId = s.id
+        guard pendingWriteId == nil else { return }
+        pendingWriteId = s.id
         Cm.annotate(id: s.id, hidden: shelf == "Hidden", deleted: shelf == "Deleted") {
-            pendingShelfId = nil
+            pendingWriteId = nil
             Task { await refreshSessions() }
         }
         // Choosing anything but Listed makes the row vanish from the view you are looking at, so
         // say where it went rather than letting it appear to have been destroyed.
         switch shelf {
-        case "Hidden":  flashNote("Hidden — see it under ≣ → Hidden.")
-        case "Deleted": flashNote("Deleted — restore it any time from ≣ → Deleted.")
-        default:        flashNote("Back in the list.")
+        case "Hidden":  flashNote("Hid “\(s.name)” — see it under ≣ → Hidden.")
+        case "Deleted": flashNote("Deleted “\(s.name)” — restore it from ≣ → Deleted.")
+        default:        flashNote("“\(s.name)” is back in the list.")
         }
     }
 
@@ -658,7 +661,7 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .padding(.vertical, 3).padding(.horizontal, 6)
-        .opacity(pendingShelfId == s.id ? 0.4 : 1)
+        .opacity(pendingWriteId == s.id ? 0.4 : 1)
         .background(rowBackground(sel))
         .accessibilityLabel("\(s.name), \(statusText(s.status)), \(tilde(s.cwd))")
         .contextMenu {
@@ -962,16 +965,17 @@ struct ContentView: View {
         // The write is a shell round trip and the row does not move until it lands. Pressing the
         // key again in that window used to act on the NEXT session, which then inherited the
         // highlight — repeat it and you walk down the list deleting rows you never selected.
-        guard pendingShelfId == nil else { return true }
+        guard pendingWriteId == nil else { return true }
         let p = patch(s)
-        if p.hidden != nil || p.deleted != nil { pendingShelfId = s.id }
+        if p.hidden != nil || p.deleted != nil || p.done != nil { pendingWriteId = s.id }
         Cm.annotate(id: s.id, done: p.done, hidden: p.hidden, deleted: p.deleted) {
-            pendingShelfId = nil
+            pendingWriteId = nil
             Task { await refreshSessions() }
         }
-        if p.hidden == true { flashNote("Hidden — see it under ≣ → Hidden.") }
-        if p.deleted == true { flashNote("Deleted — restore it any time from ≣ → Deleted.") }
-        if p.hidden == false || p.deleted == false { flashNote("Back in the list.") }
+        if p.hidden == true { flashNote("Hid “\(s.name)” — see it under ≣ → Hidden.") }
+        if p.deleted == true { flashNote("Deleted “\(s.name)” — restore it from ≣ → Deleted.") }
+        if p.hidden == false || p.deleted == false { flashNote("“\(s.name)” is back in the list.") }
+        if p.done != nil { flashNote(p.done! ? "“\(s.name)” is done." : "“\(s.name)” is open again.") }
         return true
     }
 
@@ -1104,7 +1108,11 @@ struct ContentView: View {
         let priorId = selectedSession?.id
         do {
             sessions = try await Cm.sessions()
-            annEditingId = nil   // let the editor re-read the fields it just wrote
+            // Let the editor re-read what the store now holds. Clearing the guard is not enough:
+            // when the selection does not change, nothing else calls the loader, and the fields
+            // keep the un-normalized text you typed.
+            annEditingId = nil
+            loadAnnotationFields(id: selectedSession?.id)
             sessionsError = nil
             sessionsLoaded = true
         } catch { sessionsError = describe(error); sessionsLoaded = true }
@@ -1126,9 +1134,16 @@ struct ContentView: View {
         }
     }
     private func reload() async {
+        // Fires on every popover open. Without clearing annEditingId the editor keeps the fields
+        // it loaded last time, and a rename made meanwhile in the terminal menu — same annotation
+        // store — is silently written back over on the next ⏎.
+        let priorId = selectedSession?.id
         errorText = nil; sessions = []; sessionsLoaded = false; peekCache = [:]; peekFailed = []
+        annEditingId = nil
         await loadAll()
         if tab == .resume { await loadSessions() }
+        reanchor(to: priorId)
+        loadAnnotationFields(id: selectedSession?.id)
     }
     private func describe(_ e: Error) -> String {
         if case CmError.notFound = e { return "agentctl not found. Install it (brew or npm link)." }
