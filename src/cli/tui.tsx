@@ -204,13 +204,16 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
 
   useInput((input, key) => {
     // One stdin chunk can carry many presses (held-down arrow); ink only parses the first.
+    // `moved` counts vim j/k as movement — only valid where plain letters aren't text input.
     const moved = downCount(keyChunk.current) - upCount(keyChunk.current);
+    const movedArrows = downCount(keyChunk.current, false) - upCount(keyChunk.current, false);
     if (mode === 'help') { setMode('list'); return; } // any key closes
     if (mode === 'filter') {
       if (key.return || key.escape) { setMode('list'); return; }
       // fzf-style: arrow through the narrowed list without leaving the filter box
-      // (ink-text-input only claims ←/→, so ↑/↓ are ours).
-      if (moved !== 0) setCursor(Math.max(0, Math.min(filtered.length - 1, clamped + moved)));
+      // (ink-text-input only claims ←/→, so ↑/↓ are ours). Arrows ONLY here — j and k are
+      // filter text in this mode, not movement.
+      if (movedArrows !== 0) setCursor(Math.max(0, Math.min(filtered.length - 1, clamped + movedArrows)));
       return;
     }
     if (mode === 'search-input') {

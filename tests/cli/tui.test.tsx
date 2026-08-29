@@ -91,3 +91,18 @@ describe('long lists', () => {
     expect(lastFrame()).toContain('2/');
   });
 });
+
+describe('filter box owns plain letters', () => {
+  const many = Array.from({ length: 80 }, (_, i) =>
+    rec(`${String(i).padStart(8, '0')}-0000-0000-0000-000000000000`, `jam-${i}`));
+
+  it('typing j/k filters instead of moving the cursor', async () => {
+    const { stdin, lastFrame } = render(<App initial={many} />);
+    await sendKey(stdin, '/');
+    await sendKey(stdin, 'j');
+    expect(lastFrame()).toContain('filter j');
+    expect(lastFrame()).toContain('1/80');   // still on the first match
+    await sendKey(stdin, '\x1B[B');          // arrows still move
+    expect(lastFrame()).toContain('2/80');
+  });
+});
