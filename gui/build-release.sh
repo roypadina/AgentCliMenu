@@ -18,6 +18,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/AgentCliMenuBar"
 cp gui/AgentCliMenuBar/Info.plist "$APP/Contents/Info.plist"
+# Single source of truth for the app version: package.json, stamped in at build time so the
+# bundle can never report a stale literal (it sat at 0.2.1 through two releases).
+VERSION=$(node -p "require('./package.json').version")
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
+
 
 # ── bundle the CLI (production deps only) inside the app ──
 echo "› staging cli/ with production node_modules"

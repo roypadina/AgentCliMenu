@@ -8,10 +8,12 @@
     <string>Agent CLI Menu</string>
     <key>CFBundleIdentifier</key>
     <string>com.agentclimenu.menubar</string>
+    <!-- Both are stamped from package.json by gui/build-app.sh and gui/build-release.sh;
+         the literals below are only what an unscripted `swift build` would see. -->
     <key>CFBundleVersion</key>
-    <string>0.2.1</string>
+    <string>0.4.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.2.1</string>
+    <string>0.4.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
