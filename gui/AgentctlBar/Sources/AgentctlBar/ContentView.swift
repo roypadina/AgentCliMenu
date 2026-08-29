@@ -81,9 +81,12 @@ struct ContentView: View {
     @State private var annExpanded = false
     /// Which of Remind / Due has its `Custom…` field open, if either.
     @State private var customWhen: AnnField?
-    /// Measured width of the session list — rows are as wide as it is, and the branch drops
-    /// below 340pt.
+    /// Measured width of the session list — rows are as wide as it is. The branch drops below
+    /// 400pt, which is where a long branch stops fitting beside a path on line 2.
     @State private var listWidth: CGFloat = 0
+    /// A session whose shelf write is in flight. The row stays on screen for the whole shell
+    /// round trip, so without this a second keypress acts on whatever slides underneath it.
+    @State private var pendingShelfId: String?
     /// Transient footer message — where a row just went, mostly.
     @State private var footerNote: String?
     @State private var noteToken = 0
@@ -515,7 +518,9 @@ struct ContentView: View {
     }
 
     private func moveToShelf(_ s: Session, _ shelf: String) {
+        pendingShelfId = s.id
         Cm.annotate(id: s.id, hidden: shelf == "Hidden", deleted: shelf == "Deleted") {
+            pendingShelfId = nil
             Task { await refreshSessions() }
         }
         // Choosing anything but Listed makes the row vanish from the view you are looking at, so
@@ -637,7 +642,7 @@ struct ContentView: View {
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(.secondary)
                         .lineLimit(1).truncationMode(.middle)
-                    if let b = s.gitBranch, listWidth == 0 || listWidth >= 340 {
+                    if let b = s.gitBranch, listWidth == 0 || listWidth >= 400 {
                         Text("· ⎇ \(b)")
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundColor(Tone.branch)
@@ -653,6 +658,7 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .padding(.vertical, 3).padding(.horizontal, 6)
+        .opacity(pendingShelfId == s.id ? 0.4 : 1)
         .background(rowBackground(sel))
         .accessibilityLabel("\(s.name), \(statusText(s.status)), \(tilde(s.cwd))")
         .contextMenu {
@@ -953,8 +959,14 @@ struct ContentView: View {
         _ patch: (Session) -> (deleted: Bool?, hidden: Bool?, done: Bool?)
     ) -> Bool {
         guard tab == .resume, let s = selectedSession else { return true }
+        // The write is a shell round trip and the row does not move until it lands. Pressing the
+        // key again in that window used to act on the NEXT session, which then inherited the
+        // highlight — repeat it and you walk down the list deleting rows you never selected.
+        guard pendingShelfId == nil else { return true }
         let p = patch(s)
+        if p.hidden != nil || p.deleted != nil { pendingShelfId = s.id }
         Cm.annotate(id: s.id, done: p.done, hidden: p.hidden, deleted: p.deleted) {
+            pendingShelfId = nil
             Task { await refreshSessions() }
         }
         if p.hidden == true { flashNote("Hidden — see it under ≣ → Hidden.") }
@@ -1089,12 +1101,29 @@ struct ContentView: View {
     }
     /// Re-read sessions after a write, bypassing the once-only `sessionsLoaded` guard.
     private func refreshSessions() async {
+        let priorId = selectedSession?.id
         do {
             sessions = try await Cm.sessions()
             annEditingId = nil   // let the editor re-read the fields it just wrote
             sessionsError = nil
             sessionsLoaded = true
         } catch { sessionsError = describe(error); sessionsLoaded = true }
+        reanchor(to: priorId)
+    }
+
+    /// `selection` is an index into a list that changes under it: a shelf move, a filter or a
+    /// reload can drop rows, and a clamped index then quietly points at a different session while
+    /// the highlight bar never moves. Follow the session by id instead.
+    private func reanchor(to id: String?) {
+        if let id, let i = resumeItems.firstIndex(where: { $0.id == id }) {
+            selection = i
+        } else {
+            // The selected session left this view. Land on the row that took its place, but write
+            // `selection` so the change is real and the list scrolls to it.
+            selection = min(selIndex, max(0, resumeItems.count - 1))
+            confirmResumeId = nil
+            copiedId = nil
+        }
     }
     private func reload() async {
         errorText = nil; sessions = []; sessionsLoaded = false; peekCache = [:]; peekFailed = []
