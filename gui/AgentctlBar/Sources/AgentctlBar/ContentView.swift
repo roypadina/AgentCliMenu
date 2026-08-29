@@ -189,7 +189,7 @@ struct ContentView: View {
                                         : kindFilter == "interactive" ? "person" : "list.bullet")
                     }
                     .menuStyle(.borderlessButton).fixedSize()
-                    .foregroundColor(sessionView == "normal" || kindFilter != nil ? .orange : .secondary)
+                    .foregroundColor(sessionView != "normal" || kindFilter != nil ? .orange : .secondary)
                     .help("Which sessions to list: normal, hidden or deleted; interactive or tool runs")
                 }
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }.buttonStyle(.borderless).help("Settings")
