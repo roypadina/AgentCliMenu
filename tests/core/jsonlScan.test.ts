@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scanJsonl } from '../../src/core/jsonlScan.js';
+import { scanJsonl, kindOf } from '../../src/core/jsonlScan.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, '..', 'fixtures', 'transcripts');
@@ -49,5 +49,24 @@ describe('repeated renames', () => {
   it('takes the last custom-title, so a session can be renamed any number of times', async () => {
     const out = await scanJsonl('tests/fixtures/transcripts/repeated-renames.jsonl');
     expect(out.customTitle).toBe('third and final name');
+  });
+
+  it('reads the entrypoint so tool runs can be told apart from real sessions', async () => {
+    const tool = await scanJsonl(join(fixtures, 'tool-run.jsonl'));
+    expect(tool.entrypoint).toBe('sdk-cli');
+    expect(kindOf(tool.entrypoint)).toBe('tool');
+
+    const human = await scanJsonl(join(fixtures, 'simple.jsonl'));
+    expect(kindOf(human.entrypoint)).toBe('interactive');
+  });
+
+  it('treats an unknown or missing entrypoint conservatively', () => {
+    // Old transcripts carry no entrypoint at all — those are real sessions, not tool runs.
+    expect(kindOf(null)).toBe('interactive');
+    expect(kindOf(undefined)).toBe('interactive');
+    expect(kindOf('cli')).toBe('interactive');
+    // Anything Claude Code stamps that is not the interactive CLI was driven by something else.
+    expect(kindOf('sdk-ts')).toBe('tool');
+    expect(kindOf('mcp')).toBe('tool');
   });
 });

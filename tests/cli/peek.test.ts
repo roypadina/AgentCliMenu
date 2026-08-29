@@ -17,6 +17,7 @@ const session: SessionRecord = {
   transcriptName: 'sample',
   cwd: '/tmp',
   cwdDecodeConfident: true,
+  kind: 'interactive' as const,
   jsonlPath: fixture,
   sizeBytes: 0,
   startedAt: new Date('2026-05-22T11:00:00Z'),

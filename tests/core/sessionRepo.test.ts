@@ -48,6 +48,25 @@ describe('listSessions', () => {
     expect(none).toHaveLength(0);
   });
 
+  it('separates tool runs from interactive sessions, and filters on it', async () => {
+    // A third transcript, stamped the way `claude -p` stamps a headless run.
+    const encoded = cwd.replaceAll('/', '-');
+    writeFileSync(join(home, 'projects', encoded, 'cccccccc-cccc-cccc-cccc-cccccccccccc.jsonl'),
+      `{"type":"user","entrypoint":"sdk-cli","timestamp":1700000020000,"message":{"role":"user","content":"headless run"}}\n`);
+
+    const all = await listSessions();
+    expect(all).toHaveLength(3);
+    expect(all.filter(r => r.kind === 'tool').map(r => r.name)).toEqual(['headless run']);
+
+    const tools = await listSessions({ kind: 'tool' });
+    expect(tools.map(r => r.name)).toEqual(['headless run']);
+    expect(tools[0].entrypoint).toBe('sdk-cli');
+
+    const human = await listSessions({ kind: 'interactive' });
+    expect(human).toHaveLength(2);
+    expect(human.every(r => r.kind === 'interactive')).toBe(true);
+  });
+
   it('limits and sorts by name', async () => {
     const records = await listSessions({ sortBy: 'name', limit: 1 });
     expect(records).toHaveLength(1);

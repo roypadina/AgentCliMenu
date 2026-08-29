@@ -1,5 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
+import type { SessionKind } from './types.js';
 
 export interface ScanResult {
   firstPrompt: string | null;
@@ -7,6 +8,17 @@ export interface ScanResult {
   aiTitle: string | null;
   firstTimestamp: Date | null;
   corruptLines: number;
+  /**
+   * How the session was started, straight off the transcript: `cli` for a real interactive
+   * session, `sdk-cli` for a headless `claude -p` run, and whatever else Claude Code stamps for
+   * the SDK, MCP or IDE entry points. `null` on a transcript too old to carry the field.
+   */
+  entrypoint: string | null;
+}
+
+/** Anything that is not the interactive CLI was driven by a tool, not typed by a human. */
+export function kindOf(entrypoint: string | null | undefined): SessionKind {
+  return entrypoint && entrypoint !== 'cli' ? 'tool' : 'interactive';
 }
 
 const STRIP_TAGS = [
@@ -85,6 +97,7 @@ export async function scanJsonl(path: string): Promise<ScanResult> {
   let aiTitle: string | null = null;
   let firstTimestamp: Date | null = null;
   let corruptLines = 0;
+  let entrypoint: string | null = null;
   try {
     for await (const line of rl) {
       if (!line) continue;
@@ -111,9 +124,12 @@ export async function scanJsonl(path: string): Promise<ScanResult> {
       if (firstTimestamp === null) {
         firstTimestamp = parseTimestamp(o.timestamp);
       }
+      if (entrypoint === null && typeof o.entrypoint === 'string') {
+        entrypoint = o.entrypoint;
+      }
     }
   } finally {
     stream.destroy();
   }
-  return { firstPrompt, customTitle, aiTitle, firstTimestamp, corruptLines };
+  return { firstPrompt, customTitle, aiTitle, firstTimestamp, corruptLines, entrypoint };
 }

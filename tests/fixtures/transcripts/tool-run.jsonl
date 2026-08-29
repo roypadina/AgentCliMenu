@@ -1,0 +1,2 @@
+{"type":"user","entrypoint":"sdk-cli","timestamp":1700000000000,"message":{"role":"user","content":"summarize this repo"}}
+{"type":"assistant","entrypoint":"sdk-cli","timestamp":1700000001000,"message":{"role":"assistant","content":[{"type":"text","text":"done"}]}}

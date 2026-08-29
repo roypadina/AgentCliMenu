@@ -106,6 +106,7 @@ export function registerGuiCommands(program: Command): void {
       console.log(JSON.stringify(records.map((r) => ({
         id: r.id, name: r.name, cwd: r.cwd, status: r.status, active: r.active,
         gitBranch: r.gitBranch ?? null, cwdConfident: r.cwdDecodeConfident,
+        kind: r.kind, entrypoint: r.entrypoint ?? null,
         lastUpdatedAt: r.lastUpdatedAt.toISOString(),
         startedAt: r.startedAt.toISOString(),
         flags: r.annotation?.flags ?? [],

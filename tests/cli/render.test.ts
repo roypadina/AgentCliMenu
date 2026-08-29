@@ -12,6 +12,7 @@ const sample: SessionRecord = {
   transcriptName: 'first session',
   cwd: '/Users/me/proj',
   cwdDecodeConfident: true,
+  kind: 'interactive' as const,
   jsonlPath: '/x',
   sizeBytes: 0,
   startedAt: new Date(Date.now() - 60_000),

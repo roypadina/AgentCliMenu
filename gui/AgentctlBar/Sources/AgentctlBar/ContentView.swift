@@ -55,6 +55,8 @@ struct ContentView: View {
     /// normal | hidden | deleted — hidden and deleted are listing preferences only.
     @State private var sessionView = "normal"
     @State private var hideDone = false
+    /// nil = list both. Tool runs (`claude -p`, the SDK, MCP) crowd out the sessions you sat in.
+    @State private var kindFilter: String? = nil
     @State private var annRemind = ""
     @State private var annDue = ""
     /// Session whose resume command was just copied — flips the button to a tick.
@@ -86,7 +88,7 @@ struct ContentView: View {
     }
     private var newFlat: [Dir] { newSections.flatMap { $0.dirs } }
     private var resumeItems: [Session] {
-        Fuzzy.rank(query, sessions.filter { inSessionView($0) && passesDoneFilter($0) }) {
+        Fuzzy.rank(query, sessions.filter { inSessionView($0) && passesDoneFilter($0) && passesKindFilter($0) }) {
             "\($0.name)  \(tilde($0.cwd))  \($0.id)  "
                 + $0.tags.map { "#" + $0 }.joined(separator: " ") + "  "
                 + $0.tickets.joined(separator: " ") + "  " + ($0.note ?? "")
@@ -161,13 +163,19 @@ struct ContentView: View {
                         Button(hideDone ? "Show done sessions" : "Hide done sessions") {
                             hideDone.toggle(); selection = 0
                         }
+                        Divider()
+                        Button("All runs") { kindFilter = nil; selection = 0 }
+                        Button("Interactive only") { kindFilter = "interactive"; selection = 0 }
+                        Button("Tool runs only") { kindFilter = "tool"; selection = 0 }
                     } label: {
                         Image(systemName: sessionView == "deleted" ? "trash"
-                                        : sessionView == "hidden" ? "eye.slash" : "list.bullet")
+                                        : sessionView == "hidden" ? "eye.slash"
+                                        : kindFilter == "tool" ? "terminal"
+                                        : kindFilter == "interactive" ? "person" : "list.bullet")
                     }
                     .menuStyle(.borderlessButton).fixedSize()
-                    .foregroundColor(sessionView == "normal" ? .secondary : .orange)
-                    .help("Which sessions to list: normal, hidden, or deleted")
+                    .foregroundColor(sessionView == "normal" || kindFilter != nil ? .orange : .secondary)
+                    .help("Which sessions to list: normal, hidden or deleted; interactive or tool runs")
                 }
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }.buttonStyle(.borderless).help("Settings")
             }
@@ -387,10 +395,20 @@ struct ContentView: View {
 
     private func passesDoneFilter(_ s: Session) -> Bool { !(hideDone && s.isDone) }
 
+    /// Interactive session or tool-driven run — see the `kind` field on Session.
+    private func passesKindFilter(_ s: Session) -> Bool {
+        guard let k = kindFilter else { return true }
+        return k == "tool" ? s.isToolRun : !s.isToolRun
+    }
+
     /// Compact annotation markers: done · flagged · noted · reminder (red once due).
     @ViewBuilder
     private func annotationBadges(_ s: Session) -> some View {
         HStack(spacing: 3) {
+            if s.isToolRun {
+                Image(systemName: "terminal").font(.caption2).foregroundColor(.secondary)
+                    .help("started by a tool, not by you" + (s.entrypoint.map { " (\($0))" } ?? ""))
+            }
             if s.isDone {
                 Image(systemName: "checkmark.circle.fill").font(.caption2).foregroundColor(.green)
                     .help("marked done")

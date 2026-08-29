@@ -1,5 +1,12 @@
 export type SessionStatus = 'busy' | 'idle' | 'inactive';
 
+/**
+ * Who drove the session. `interactive` is a real session you sat in front of; `tool` is a run
+ * started by something else — `claude -p`, the SDK, an MCP client, an IDE bridge. Derived from
+ * the transcript's `entrypoint`, so it is known for dead sessions too.
+ */
+export type SessionKind = 'interactive' | 'tool';
+
 export interface SessionRecord {
   id: string;
   /** Display name: the annotation's name override when set, else `transcriptName`. */
@@ -17,6 +24,10 @@ export interface SessionRecord {
   pid?: number;
   version?: string;
   gitBranch?: string;
+  /** Interactive session or a tool-driven run — see SessionKind. */
+  kind: SessionKind;
+  /** Raw `entrypoint` from the transcript (`cli`, `sdk-cli`, …); undefined on older transcripts. */
+  entrypoint?: string;
   /**
    * Claude home this session belongs to (`~/.claude`, `~/.claude3`, …). Resuming must run under
    * it — a mismatch silently resumes the transcript as the WRONG ACCOUNT when profiles share a
@@ -63,6 +74,8 @@ export interface ListOptions {
   cwd?: string;
   activeOnly?: boolean;
   view?: SessionView;
+  /** Keep only interactive sessions, or only tool-driven runs. Omit for both. */
+  kind?: SessionKind;
   sortBy?: 'updated' | 'started' | 'name';
   limit?: number;
 }

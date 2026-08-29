@@ -177,6 +177,7 @@ agentctl ls [--cwd <path>] [--active] [--json] [--sort updated|started|name] [--
 agentctl peek <id> [--full] [--head N --tail N]   # print a transcript
 agentctl recap <id> [--refresh]                   # AI summary of a session (cached)
 agentctl resume <id> [--yes] [--cwd <override>]   # resume by id (prefix ≥ 4 chars)
+agentctl ls --tool | --interactive                # only tool runs / only real sessions
 agentctl path <id>                                # print the .jsonl path
 agentctl config --setup | --edit | --path         # manage the shared config
 ```
@@ -190,7 +191,8 @@ agentctl config --setup | --edit | --path         # manage the shared config
 `/` fuzzy-filter · `s` full-text search · `^r` refresh · `⇥` New · `?` help · `q` quit.
 Annotate the highlighted session in place: `e` name · `n` note · `l` labels · `f` flags · `t` reminder ·
 `u` due date · `d` done. `c` copies a resume command, `h` hides a session, `x` deletes it (twice),
-`v` shows the hidden ones, `H` shows/hides done ones. (`l` pre-fills the issue key from the branch.)
+`v` shows the hidden ones, `H` shows/hides done ones, `T` filters tool runs. (`l` pre-fills the issue
+key from the branch.)
 
 `space` marks sessions — `h`, `x` and `d` then act on every marked one at once, and the cursor stays
 where it was instead of jumping back to the top.
@@ -203,6 +205,17 @@ Deleted sessions are deliberately **not reachable from the menu** — that is wh
 safe to do. Recover them with `agentctl delete --undo`, or from the menu-bar app's Deleted view.
 Highlighting a row shows its full details + recap inline. A `!` marks a session whose working directory
 couldn't be decoded with confidence — `↵` twice to resume anyway.
+
+### Tool runs vs. sessions you actually sat in
+
+A `▸` marks a session something else started — `claude -p`, the SDK, an MCP client — rather than one you
+typed into. It comes straight off the transcript's entrypoint, so it is known for dead sessions too.
+`T` in the menu cycles **everything → interactive only → tool runs only**; the CLI has `agentctl ls --tool`
+and `--interactive`, and the menu-bar app the same three choices in its list menu.
+
+One honest limit: a *real* interactive session that a script drove (tmux `send-keys` into a live
+`claude`, say) is recorded by Claude Code as interactive, because that is exactly what it was. Only
+headless and SDK entry points are distinguishable.
 
 ## Names, notes, flags and reminders
 

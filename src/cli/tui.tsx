@@ -17,7 +17,7 @@ import { useKeyChunk, upCount, downCount } from './useKeyChunk.js';
 import {
   writeAnnotation, parseWhen, isReminderDue, isOverdue, detectIssueKeys, type AnnotationPatch,
 } from '../core/annotations.js';
-import type { SessionRecord, SessionStatus, SessionView, TranscriptTurn } from '../core/types.js';
+import type { SessionKind, SessionRecord, SessionStatus, SessionView, TranscriptTurn } from '../core/types.js';
 
 interface RecapState { text?: string; loading?: boolean; error?: string }
 
@@ -86,6 +86,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const [promptError, setPromptError] = useState<string | null>(null);
   const [hideDone, setHideDone] = useState(false);
   const [sessionView, setSessionView] = useState<SessionView>('normal');
+  /** null = show both. Tool runs (claude -p, the SDK, MCP) crowd out the sessions you actually sat in. */
+  const [kindFilter, setKindFilter] = useState<SessionKind | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   /** Transient footer note after `c` — cleared by the next keypress. */
   const [copied, setCopied] = useState<string | null>(null);
@@ -104,7 +106,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     if (sessionView === 'hidden') return a?.hidden === true && a?.deleted !== true;
     return a?.hidden !== true && a?.deleted !== true;
   };
-  const visible = records.filter(r => inView(r) && !(hideDone && r.annotation?.done));
+  const visible = records.filter(r =>
+    inView(r) && !(hideDone && r.annotation?.done) && (!kindFilter || r.kind === kindFilter));
   const haystack = (r: SessionRecord) =>
     `${r.name}  ${tildify(r.cwd)}  ${r.id}  ${(r.annotation?.flags ?? []).map(f => '#' + f).join(' ')}` +
     `  ${(r.annotation?.labels ?? []).join(' ')}  ${r.annotation?.note ?? ''}`;
@@ -117,6 +120,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const activeCount = records.filter(r => r.active).length;
   const doneCount = records.filter(r => r.annotation?.done).length;
   const dueCount = records.filter(r => isReminderDue(r.annotation)).length;
+  const toolCount = records.filter(r => r.kind === 'tool').length;
 
   /** Apply an annotation patch to the highlighted session and refresh it in place. */
   const annotate = (s: SessionRecord, patch: AnnotationPatch) => {
@@ -360,6 +364,11 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
       return;
     }
     if (input === 'H') { setHideDone(v => !v); setCursor(0); return; }
+    if (input === 'T') {
+      setKindFilter(k => (k === null ? 'interactive' : k === 'interactive' ? 'tool' : null));
+      setCursor(0);
+      return;
+    }
     if (input === ' ') {
       const sel = filtered[clamped];
       if (!sel) return;
@@ -447,7 +456,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const wBranch = cols >= 90 ? 12 : 8;
   const wUsed = 14; // "Jun 09 10:43"
   const showId = cols >= 110;
-  const fixedCols = 2 + 2 + (showExtras ? 7 : 0) + (showId ? 9 : 0) + 1 + wBranch + 1 + wUsed + 1 + 2;
+  const fixedCols = 2 + 2 + (showExtras ? 9 : 0) + (showId ? 9 : 0) + 1 + wBranch + 1 + wUsed + 1 + 2;
   const wName = Math.max(10, Math.min(44, Math.floor((tableInner - fixedCols) * 0.6)));
   // The list is the ONLY elastic block on screen, so its height is whatever the fixed chrome
   // and the (content-sized) details pane leave over. Guessing a constant here is what pushed
@@ -517,6 +526,16 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
             <Text dimColor> done{hideDone ? ' (hidden)' : ''}</Text>
           </>
         ) : null}
+        {toolCount > 0 ? (
+          <>
+            <Text dimColor>  ·  </Text>
+            <Text color={kindFilter ? 'yellow' : 'gray'}>
+              {kindFilter === 'interactive' ? 'interactive only'
+                : kindFilter === 'tool' ? 'tool runs only'
+                : `▸ ${toolCount} tool`}
+            </Text>
+          </>
+        ) : null}
         {filter ? (
           <>
             <Text dimColor>  ·  filter </Text>
@@ -537,6 +556,13 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
         <Text dimColor> idle   </Text>
         <Text color="gray">○</Text>
         <Text dimColor> inactive</Text>
+        {toolCount > 0 ? (
+          <>
+            <Text dimColor>   </Text>
+            <Text color="gray">▸</Text>
+            <Text dimColor> tool run (T filters)</Text>
+          </>
+        ) : null}
       </Box>
     </Box>
   );
@@ -687,6 +713,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
           <HelpRow k="t / u" v="reminder / due date" />
           <HelpRow k="" v="(l pre-fills the issue key from the branch)" />
           <HelpRow k="d / H" v="toggle done / show-hide done sessions" />
+          <HelpRow k="T" v="cycle: everything → interactive only → tool runs only" />
           <HelpRow k="space" v="mark a session — h/x/d then act on every marked one" />
           <HelpRow k="c" v="copy `agentctl resume <id>` to the clipboard" />
           {multiProfile ? <HelpRow k="a" v="cycle which Claude account the resume uses" /> : null}
@@ -696,7 +723,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
           <HelpRow k="^r" v="refresh sessions" />
           <HelpRow k="⇥ tab" v="switch to New" />
           <HelpRow k="q" v="quit" />
-          <Box marginTop={1}><Text dimColor>⚠ = decoded cwd uncertain — Enter twice to resume anyway.  press any key to close</Text></Box>
+          <Box marginTop={1}><Text dimColor>▸ = started by a tool (claude -p, the SDK, MCP), not typed by you</Text></Box>
+          <Box><Text dimColor>⚠ = decoded cwd uncertain — Enter twice to resume anyway.  press any key to close</Text></Box>
         </Box>
       ) : null}
 
@@ -848,6 +876,7 @@ function TableHeader({ wName, wBranch, wUsed, extras, showId }: {
     <Box>
       <Box width={4} flexShrink={0}><Text dimColor bold>ST</Text></Box>
       {extras ? <Box width={2} flexShrink={0}><Text dimColor bold> </Text></Box> : null}
+      {extras ? <Box width={2} flexShrink={0}><Text dimColor bold> </Text></Box> : null}
       <Box width={wName} marginRight={1} flexShrink={0}><Text dimColor bold>NAME</Text></Box>
       {extras ? <Box width={5} flexShrink={0}><Text dimColor bold> </Text></Box> : null}
       {showId ? <Box width={9} flexShrink={0}><Text dimColor bold>ID</Text></Box> : null}
@@ -886,6 +915,7 @@ function Row({ r, selected, marked, wName, wBranch, wUsed, bar, extras, showId }
       </Box>
       <Box width={2} flexShrink={0}><Text color={STATUS_COLOR[r.status]} bold>{STATUS_DOT[r.status]}</Text></Box>
       {extras ? <Box width={2} flexShrink={0}><Text bold color="yellow">{r.cwdDecodeConfident ? ' ' : '!'}</Text></Box> : null}
+      {extras ? <Box width={2} flexShrink={0}><Text color="gray">{r.kind === 'tool' ? '▸' : ' '}</Text></Box> : null}
       <Box width={wName} marginRight={1} flexShrink={0}>
         <Text bold={selected} color={selected ? 'cyan' : 'white'} wrap="truncate-end">{r.name}</Text>
       </Box>
@@ -930,6 +960,9 @@ function DetailsPane({ s, recap, confirming, deleting, deletingCount, account, o
         <Text color="magenta">{narrow ? s.id.slice(0, 8) : s.id}</Text>
         <Text dimColor>   </Text>
         <Text color={STATUS_COLOR[s.status]}>{STATUS_DOT[s.status]} {s.status}</Text>
+        {s.kind === 'tool' ? (
+          <Text color="gray">   ▸ tool run{s.entrypoint && !narrow ? ` (${s.entrypoint})` : ''}</Text>
+        ) : null}
         {s.gitBranch && !narrow ? (<><Text dimColor>   ⎇ </Text><Text color="magenta">{s.gitBranch}</Text></>) : null}
         {!s.cwdDecodeConfident ? <Text color="yellow">{narrow ? '  ⚠' : '   ⚠ cwd uncertain'}</Text> : null}
       </Box>

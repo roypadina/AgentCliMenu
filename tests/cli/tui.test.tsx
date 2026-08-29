@@ -8,6 +8,7 @@ function rec(id: string, name: string): SessionRecord {
   return {
     id, name, transcriptName: name, cwd: '/tmp',
     cwdDecodeConfident: true,
+    kind: 'interactive' as const,
     jsonlPath: '/x.jsonl',
     sizeBytes: 0,
     startedAt: new Date(),

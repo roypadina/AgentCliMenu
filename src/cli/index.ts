@@ -53,11 +53,14 @@ export function buildProgram(): Command {
     .option('--hidden', 'list only hidden sessions')
     .option('--deleted', 'list only deleted sessions')
     .option('--all', 'list everything, hidden and deleted included')
+    .option('--tool', 'only sessions a tool started (claude -p, the SDK, MCP…)')
+    .option('--interactive', 'only real interactive sessions')
     .option('--limit <n>', '', v => parseInt(v, 10))
     .action(async opts => {
       const records = await listSessions({
         cwd: opts.cwd, activeOnly: opts.active, sortBy: opts.sort, limit: opts.limit,
         view: opts.all ? 'all' : opts.deleted ? 'deleted' : opts.hidden ? 'hidden' : 'normal',
+        kind: opts.tool ? 'tool' : opts.interactive ? 'interactive' : undefined,
       });
       if (opts.json) {
         console.log(JSON.stringify(records.map(r => ({

@@ -11,6 +11,7 @@ function record(overrides: Partial<SessionRecord> = {}): SessionRecord {
     transcriptName: 'x',
     cwd: '/tmp',
     cwdDecodeConfident: true,
+    kind: 'interactive' as const,
     jsonlPath: '/x.jsonl',
     sizeBytes: 0,
     startedAt: new Date(),

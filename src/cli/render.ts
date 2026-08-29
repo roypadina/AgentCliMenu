@@ -38,9 +38,10 @@ export function renderTable(records: SessionRecord[]): string {
   const maxNameW = Math.max(30, Math.min(70, Math.floor(cols * 0.40)));
   const maxCwdW = Math.max(20, Math.min(50, Math.floor(cols * 0.30)));
 
-  const headers = ['●', '', 'UPDATED', 'AGO', 'STARTED', 'NAME', 'CWD', 'BRANCH', 'ID'].map(h => chalk.bold.dim(h));
+  const headers = ['●', '', '', 'UPDATED', 'AGO', 'STARTED', 'NAME', 'CWD', 'BRANCH', 'ID'].map(h => chalk.bold.dim(h));
   const rows = records.map(r => [
     STATUS_DOT[r.status],
+    r.kind === 'tool' ? chalk.gray('▸') : '',
     badges(r),
     chalk.cyan(formatDate(r.lastUpdatedAt, now)),
     chalk.yellow.dim(timeAgo(r.lastUpdatedAt, now)),

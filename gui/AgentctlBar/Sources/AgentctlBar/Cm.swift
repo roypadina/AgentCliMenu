@@ -27,6 +27,9 @@ struct Session: Codable, Identifiable {
     let remindAt: String?; let remindDue: Bool?
     let dueAt: String?; let overdue: Bool?
     let hidden: Bool?; let deleted: Bool?
+    /// "interactive" or "tool" — a tool run is one something else started (`claude -p`, the SDK,
+    /// MCP), not one you sat in front of. `entrypoint` is the raw value behind it.
+    let kind: String?; let entrypoint: String?
     /// Claude account this session would resume under.
     let account: String?
 
@@ -37,6 +40,7 @@ struct Session: Codable, Identifiable {
     var isOverdue: Bool { overdue ?? false }
     var isHidden: Bool { hidden ?? false }
     var isDeleted: Bool { deleted ?? false }
+    var isToolRun: Bool { kind == "tool" }
     var hasAnnotation: Bool {
         isDone || !tags.isEmpty || !tickets.isEmpty || note != nil || remindAt != nil || dueAt != nil
     }
