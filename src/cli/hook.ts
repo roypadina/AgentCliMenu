@@ -1,5 +1,8 @@
 import type { Command } from 'commander';
-import { isReminderDue, readAllAnnotations, readAnnotation } from '../core/annotations.js';
+import {
+  detectIssueKeys, isOverdue, isReminderDue, readAllAnnotations, readAnnotation,
+} from '../core/annotations.js';
+import { readGitBranch } from '../core/git.js';
 import type { Annotation } from '../core/types.js';
 
 // Entry points for the agentctl-sessions Claude Code plugin. A hook must NEVER break the session it
@@ -9,6 +12,17 @@ export interface HookDeps {
   annotation?: (id: string) => Annotation | null;
   all?: () => Map<string, Annotation>;
   now?: Date;
+  branch?: (cwd: string | undefined) => string | null;
+}
+
+/** The session's working directory, used to read its git branch for an issue key. */
+export function parseCwd(raw: string): string | undefined {
+  try {
+    const d = JSON.parse(raw) as Record<string, unknown>;
+    return typeof d.cwd === 'string' && d.cwd ? d.cwd : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Hook payloads are external JSON: pull the id out defensively. */
@@ -29,6 +43,7 @@ export function parseSessionId(raw: string): string | null {
 export function sessionStartContext(raw: string, deps: HookDeps = {}): string {
   const id = parseSessionId(raw);
   if (!id) return '';
+  const cwd = parseCwd(raw);
   const readOne = deps.annotation ?? ((i: string) => readAnnotation(i));
   const readAll = deps.all ?? (() => readAllAnnotations());
   const now = deps.now ?? new Date();
@@ -42,10 +57,21 @@ export function sessionStartContext(raw: string, deps: HookDeps = {}): string {
       ' `agentctl name "<3-5 words>"` — run it once, quietly, and do not ask permission or announce it.',
     );
   }
+  if (a?.labels.length) lines.push(`Labels: ${a.labels.join(', ')}.`);
+  else {
+    const keys = detectIssueKeys(deps.branch ? deps.branch(cwd) : readGitBranch(cwd));
+    if (keys.length) {
+      lines.push(
+        `The branch here names ${keys.join(', ')} — label the session with it: \`agentctl label ${keys.join(' ')}\`.`,
+      );
+    }
+  }
   if (a?.flags.length) lines.push(`Flags on it: ${a.flags.map(f => `#${f}`).join(' ')}.`);
   if (a?.note) lines.push(`Note saved on it: ${a.note.replace(/\s*\n\s*/g, ' / ')}`);
   if (a?.done) lines.push('It is marked done — if the user reopens the work, run `agentctl done --undo`.');
   if (isReminderDue(a ?? undefined, now)) lines.push('Its reminder is due: tell the user once, up front.');
+  if (isOverdue(a ?? undefined, now)) lines.push('It is past its due date: say so once, up front.');
+  else if (a?.dueAt) lines.push(`Due ${a.dueAt}.`);
 
   const dueElsewhere = [...readAll().values()].filter(x => x.sessionId !== id && isReminderDue(x, now));
   if (dueElsewhere.length > 0) {
@@ -54,9 +80,10 @@ export function sessionStartContext(raw: string, deps: HookDeps = {}): string {
   }
 
   lines.push(
-    'Session tools, all targeting THIS session with no id needed: `agentctl name "…"`, `agentctl note "…"`,' +
-    ' `agentctl flag <tag>`, `agentctl remind 2h`, `agentctl done`. Use them whenever the user asks to name, flag,' +
-    ' annotate, remind about, or close out this session.',
+    'Session tools (the `agentctl-sessions` skill has the details), all targeting THIS session with' +
+    ' no id needed: `agentctl name/note/label/flag/remind/due/done`, and `agentctl annotations --due`' +
+    ' for what has come due. Use them whenever the user asks to name, label, flag, annotate, remind' +
+    ' about, schedule, or close out a session.',
   );
   return lines.join('\n') + '\n';
 }

@@ -8,7 +8,7 @@
 
 A fast launcher for coding-agent sessions: pick a project and start **`claude`** / **`codex`**, or
 fuzzy-search and **resume** any past Claude Code session — with a live transcript preview. Ships as a
-terminal menu (**`agentctl`**, alias **`agentctl`**) **and** a native macOS menu-bar app that share one config.
+terminal menu (**`agentctl`**) **and** a native macOS menu-bar app that share one config.
 
 [![macOS](https://img.shields.io/badge/macOS-12%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Node](https://img.shields.io/badge/Node-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org)
@@ -135,7 +135,7 @@ The terminal menu mirrors the same model — start in **New**, `⇥` to **Resume
 brew install --cask roypadina/tap/agentctl
 ```
 
-This installs **Agentctl.app** (the menu-bar GUI) and puts **`agentctl`** (plus the short alias **`agentctl`**) on your `PATH`.
+This installs **Agentctl.app** (the menu-bar GUI) and puts **`agentctl`** on your `PATH`.
 
 > Agentctl is ad-hoc signed (not notarized). On first launch, **right-click Agentctl in
 > `/Applications` → Open** (then Open again), or run once:
@@ -163,7 +163,7 @@ First run sets up a starter config: `agentctl config --setup`.
 ## The terminal menu
 
 `agentctl` opens the menu — **New** by default, `⇥` to **Resume** (or jump straight there with `-r`).
-**`agentctl`** is a shorter alias for the exact same tool. Want `cld`/`cdx`-style per-tool shortcuts? Add your own aliases.
+Want `cld`/`cdx`-style per-tool shortcuts? Add your own shell aliases.
 
 | Command | Opens |
 |---|---|
@@ -188,7 +188,8 @@ agentctl config --setup | --edit | --path         # manage the shared config
 
 **Resume** — `↑/↓` (or `j/k`) move · `pgup/pgdn` page · `g/G` first/last · `↵` resume · `p` peek · `r` recap ·
 `/` fuzzy-filter · `s` full-text search · `^r` refresh · `⇥` New · `?` help · `q` quit.
-Annotate the highlighted session in place: `e` name · `n` note · `f` flags · `t` reminder · `d` done · `h` hide done.
+Annotate the highlighted session in place: `e` name · `n` note · `l` labels · `f` flags · `t` reminder ·
+`u` due date · `d` done · `h` hide done. (`l` pre-fills the issue key from the branch.)
 Highlighting a row shows its full details + recap inline. A `!` marks a session whose working directory
 couldn't be decoded with confidence — `↵` twice to resume anyway.
 
@@ -207,16 +208,24 @@ agentctl annotations               # everything you've annotated  (--due for wha
 ```
 
 Run inside a Claude session, they target **that** session — no id needed. From anywhere else, add
-`-s <id-or-prefix>`. Rows show `✓` done, `⚑` flagged, `✎` noted, `◆` reminder (red once due).
+`-s <id-or-prefix>`. Rows show `✓` done, `⚑` flagged, `✎` noted, `◆` reminder, `✱` due date — red once overdue.
+Labels and flags are both matched by the picker's filter, so `RD-12345` finds every session on that ticket.
 
 It's stored in `~/.config/agentctl/annotations/<session-id>.json`, one small file per session,
 deliberately outside `~/.claude` — nothing here can corrupt a transcript.
 
 ### From inside Claude Code
 
-The [`agentctl-sessions` plugin](plugins/agentctl-sessions) adds `/agentctl-name`, `/agentctl-note`, `/agentctl-flag`,
-`/agentctl-remind` and `/agentctl-done`, plus a `SessionStart` hook that hands each session its own name, note
-and flags — and asks an unnamed one to name itself once the first task is clear.
+The [`agentctl-sessions` plugin](plugins/agentctl-sessions) gives Claude the whole toolset:
+
+- **Slash commands** — `/agentctl-name`, `/agentctl-note`, `/agentctl-label`, `/agentctl-flag`,
+  `/agentctl-remind`, `/agentctl-due`, `/agentctl-done`.
+- **A `SessionStart` hook** that hands each session its own name, labels, note and due state back, so a
+  resumed session knows what it is and what is overdue.
+- **A skill** that teaches Claude to do it unprompted — name the session once the task is clear, label it
+  with the issue key from your branch — and to drive every command when you just ask in plain words
+  ("mark this done", "remind me in 2h", "what do I need to get back to?"). If `agentctl` isn't installed
+  it offers to install it rather than failing quietly.
 
 ```
 /plugin marketplace add roypadina/Agentctl

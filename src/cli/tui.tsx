@@ -12,7 +12,9 @@ import { fuzzyRank } from '../core/fuzzy.js';
 import { getRecap, readCachedRecap, spawnRun } from '../core/recap.js';
 import { windowFor, scrollbar } from './viewport.js';
 import { useKeyChunk, upCount, downCount } from './useKeyChunk.js';
-import { writeAnnotation, parseWhen, isReminderDue, type AnnotationPatch } from '../core/annotations.js';
+import {
+  writeAnnotation, parseWhen, isReminderDue, isOverdue, detectIssueKeys, type AnnotationPatch,
+} from '../core/annotations.js';
 import type { SessionRecord, SessionStatus, TranscriptTurn } from '../core/types.js';
 
 interface RecapState { text?: string; loading?: boolean; error?: string }
@@ -30,13 +32,15 @@ function tildify(p: string): string {
 }
 
 type Mode = 'list' | 'filter' | 'peek' | 'search-input' | 'search-results' | 'help' | 'annotate';
-type PromptKind = 'name' | 'note' | 'flag' | 'remind';
+type PromptKind = 'name' | 'note' | 'flag' | 'label' | 'remind' | 'due';
 
 const PROMPTS: Record<PromptKind, string> = {
   name: 'name (empty clears the override): ',
   note: 'note (empty clears it): ',
   flag: 'flags, space separated (-flag removes one, empty clears all): ',
+  label: 'labels — Jira key, repo, topic (-label removes one, empty clears all): ',
   remind: 'remind me in / at — 2h, tomorrow 9am, 17:00 (empty clears): ',
+  due: 'due — 3d, tomorrow 9am, 17:00, an ISO date (empty clears): ',
 };
 
 interface AppProps {
@@ -81,7 +85,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
 
   const visible = hideDone ? records.filter(r => !r.annotation?.done) : records;
   const haystack = (r: SessionRecord) =>
-    `${r.name}  ${tildify(r.cwd)}  ${r.id}  ${(r.annotation?.flags ?? []).map(f => '#' + f).join(' ')}  ${r.annotation?.note ?? ''}`;
+    `${r.name}  ${tildify(r.cwd)}  ${r.id}  ${(r.annotation?.flags ?? []).map(f => '#' + f).join(' ')}` +
+    `  ${(r.annotation?.labels ?? []).join(' ')}  ${r.annotation?.note ?? ''}`;
   const filtered = filter ? fuzzyRank(filter, visible, haystack).map(x => x.item) : visible;
   const clamped = Math.min(cursor, Math.max(0, filtered.length - 1));
   // Re-filtering shrinks the list under the cursor. Snap back to the top, otherwise the stale
@@ -105,6 +110,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     const value = kind === 'name' ? (a?.name ?? '')
       : kind === 'note' ? (a?.note ?? '')
       : kind === 'flag' ? (a?.flags ?? []).join(' ')
+      : kind === 'label' ? ((a?.labels ?? []).join(' ') || detectIssueKeys(s.gitBranch).join(' '))
       : '';
     setPrompt({ kind, value });
     setPromptError(null);
@@ -128,12 +134,22 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
           removeFlags: words.filter(w => w.startsWith('-')).map(w => w.slice(1)),
         };
       }
+    } else if (kind === 'label') {
+      if (!v) patch = { removeLabels: s.annotation?.labels ?? [] };
+      else {
+        const words = v.split(/\s+/);
+        patch = {
+          addLabels: words.filter(w => !w.startsWith('-')),
+          removeLabels: words.filter(w => w.startsWith('-')).map(w => w.slice(1)),
+        };
+      }
     } else {
-      if (!v) patch = { remindAt: null };
+      const field = kind === 'due' ? 'dueAt' : 'remindAt';
+      if (!v) patch = { [field]: null };
       else {
         const at = parseWhen(v);
         if (!at) { setPromptError(`can't read a time out of "${v}"`); return; }
-        patch = { remindAt: at.toISOString() };
+        patch = { [field]: at.toISOString() };
       }
     }
     annotate(s, patch);
@@ -299,6 +315,8 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
     if (input === 'n') { openPrompt('note'); return; }
     if (input === 'f') { openPrompt('flag'); return; }
     if (input === 't') { openPrompt('remind'); return; }
+    if (input === 'l') { openPrompt('label'); return; }
+    if (input === 'u') { openPrompt('due'); return; }
     if (input === 'd') {
       const sel = filtered[clamped];
       if (sel) annotate(sel, { done: !sel.annotation?.done });
@@ -342,7 +360,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
   const showExtras = cols >= 70;
   const wBranch = cols >= 90 ? 12 : 8;
   const wUsed = 14; // "Jun 09 10:43"
-  const fixedCols = 2 + 2 + (showExtras ? 6 : 0) + 1 + wBranch + 1 + wUsed + 1 + 2;
+  const fixedCols = 2 + 2 + (showExtras ? 7 : 0) + 1 + wBranch + 1 + wUsed + 1 + 2;
   const wName = Math.max(10, Math.min(44, Math.floor((tableInner - fixedCols) * 0.6)));
   // The list is the ONLY elastic block on screen, so its height is whatever the fixed chrome
   // and the (content-sized) details pane leave over. Guessing a constant here is what pushed
@@ -565,7 +583,9 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
           <HelpRow k="/" v="fuzzy-filter the list" />
           <HelpRow k="s" v="full-text search across all transcripts" />
           <HelpRow k="e / n" v="edit name / note" />
-          <HelpRow k="f / t" v="flags / reminder" />
+          <HelpRow k="f / l" v="flags / labels (Jira key, repo, topic)" />
+          <HelpRow k="t / u" v="reminder / due date" />
+          <HelpRow k="" v="(l pre-fills the issue key from the branch)" />
           <HelpRow k="d / h" v="toggle done / hide done" />
           <HelpRow k="^r" v="refresh sessions" />
           <HelpRow k="⇥ tab" v="switch to New" />
@@ -690,7 +710,7 @@ export function App({ initial, onResume, onBack, onQuit, onSwitchTab }: AppProps
                 <>
                   <Text dimColor> · r </Text><Text color="white">recap</Text>
                   <Text dimColor> · p </Text><Text color="white">peek</Text>
-                  <Text dimColor> · e/n/f/t/d </Text><Text color="white">annotate</Text>
+                  <Text dimColor> · e/n/f/l/t/u/d </Text><Text color="white">annotate</Text>
                 </>
               ) : null}
               <Text dimColor> · ? </Text><Text color="white">help</Text>
@@ -711,7 +731,7 @@ function TableHeader({ wName, wBranch, wUsed, extras }: {
       <Box width={4} flexShrink={0}><Text dimColor bold>ST</Text></Box>
       {extras ? <Box width={2} flexShrink={0}><Text dimColor bold> </Text></Box> : null}
       <Box width={wName} marginRight={1} flexShrink={0}><Text dimColor bold>NAME</Text></Box>
-      {extras ? <Box width={4} flexShrink={0}><Text dimColor bold> </Text></Box> : null}
+      {extras ? <Box width={5} flexShrink={0}><Text dimColor bold> </Text></Box> : null}
       <Box width={wBranch} marginRight={1} flexShrink={0}><Text dimColor bold>BRANCH</Text></Box>
       <Box width={wUsed} marginRight={1} flexShrink={0}><Text dimColor bold>LAST USED</Text></Box>
       <Box flexGrow={1} minWidth={0}><Text dimColor bold>CWD</Text></Box>
@@ -729,6 +749,7 @@ function badgeMarks(r: SessionRecord): Array<{ ch: string; color: string }> {
   if (a.flags.length) out.push({ ch: '⚑', color: 'yellow' });
   if (a.note) out.push({ ch: '✎', color: 'cyan' });
   if (a.remindAt) out.push({ ch: '◆', color: isReminderDue(a) ? 'red' : 'magenta' });
+  if (a.dueAt) out.push({ ch: '✱', color: isOverdue(a) ? 'red' : 'blue' });
   return out;
 }
 
@@ -745,7 +766,7 @@ function Row({ r, selected, wName, wBranch, wUsed, bar, extras }: {
         <Text bold={selected} color={selected ? 'cyan' : 'white'} wrap="truncate-end">{r.name}</Text>
       </Box>
       {extras ? (
-        <Box width={4} flexShrink={0}>
+        <Box width={5} flexShrink={0}>
           {badgeMarks(r).map((m, i) => <Text key={i} color={m.color}>{m.ch}</Text>)}
         </Box>
       ) : null}
@@ -797,10 +818,16 @@ function DetailsPane({ s, recap, confirming, maxNoteLines, maxRecapLines, narrow
       {s.annotation ? (
         <Box>
           {s.annotation.done ? <Text color="green">✓ done   </Text> : null}
+          {s.annotation.labels.map(l => <Text key={l} color="blue">[{l}] </Text>)}
           {s.annotation.flags.map(f => <Text key={f} color="yellow">#{f} </Text>)}
           {s.annotation.remindAt ? (
             <Text color={isReminderDue(s.annotation) ? 'red' : 'magenta'}>
               {'  ◆ '}{isReminderDue(s.annotation) ? 'due ' : 'remind '}{formatDate(new Date(s.annotation.remindAt))}
+            </Text>
+          ) : null}
+          {s.annotation.dueAt ? (
+            <Text color={isOverdue(s.annotation) ? 'red' : 'blue'}>
+              {'  ✱ '}{isOverdue(s.annotation) ? 'OVERDUE ' : 'due '}{formatDate(new Date(s.annotation.dueAt))}
             </Text>
           ) : null}
         </Box>

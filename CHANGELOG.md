@@ -3,6 +3,38 @@
 All notable changes to Agentctl are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
+## [0.5.0] — 2026-08-29
+
+### Changed — BREAKING
+
+- **Renamed to `agentctl`.** One name everywhere, replacing the five the project used to ship
+  (`Agent CLI Menu` / `AgentCliMenu` / `agentclimenu` / `agent-cli-menu` / `acm`). The command is
+  now **`agentctl`**; `acm` and `agent-cli-menu` are gone — `acm` reads as AWS Certificate Manager
+  to this audience, which was half the reason to rename. The cask is `roypadina/tap/agentctl`, the
+  app is `Agentctl.app` (`com.roypadina.agentctl` — the old bundle id used a domain we don't own),
+  and config lives in `~/.config/agentctl`.
+- **Nothing is lost upgrading.** A pre-rename `~/.config/agentclimenu` is moved across on first
+  run — config, annotations and recaps all live under it, so one rename carries every one of them —
+  and each renamed env var still falls back to its old name (`AGENTCTL_CONFIG` → `AGENTCLIMENU_CONFIG`,
+  `AGENTCTL_HOME` → `CCSM_HOME`, and so on). Shell aliases or Raycast/tmux binds pointing at `acm`
+  do need updating, and the new bundle id means the global hotkey, Login Item and Accessibility
+  grants have to be given to the app once more.
+
+### Added
+
+- **Labels** — link a session to a ticket, repo or topic (`agentctl label RD-12345 catalog`, or
+  `--auto` to take the issue key straight from the git branch). Labels keep their case, are matched
+  by the picker's filter, and filter the listing (`agentctl annotations --label RD-12345`). `l` in
+  the TUI, pre-filled with the branch's issue key.
+- **Due dates** — `agentctl due "friday 17:00"`, distinct from a reminder: a due date is when the
+  work is due, and the session shows overdue once it passes. `u` in the TUI, `✱` badge, red when
+  overdue.
+- **A skill in the `agentctl-sessions` plugin** teaching Claude the whole toolset — to name and
+  label sessions unprompted, to drive every command from plain requests, and to offer to install
+  `agentctl` when it is missing instead of failing quietly. Plus `/agentctl-label` and
+  `/agentctl-due` commands, and a `SessionStart` hook that now reports labels, due dates and the
+  issue key it found in your branch.
+
 ## [0.4.0] — 2026-08-29
 
 ### Added
