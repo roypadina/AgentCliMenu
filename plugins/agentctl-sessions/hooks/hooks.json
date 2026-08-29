@@ -1,0 +1,17 @@
+{
+  "description": "agentctl-sessions: hand each session its Agentctl name, note, flags and due reminders at startup.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v agentctl >/dev/null 2>&1 && agentctl hook session-start || exit 0",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

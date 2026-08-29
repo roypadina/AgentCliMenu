@@ -17,7 +17,7 @@ const target = { id: 'sess-1', jsonlPath: '/x.jsonl' };
 
 let cacheDir: string;
 beforeEach(() => {
-  cacheDir = mkdtempSync(join(tmpdir(), 'acm-recap-'));
+  cacheDir = mkdtempSync(join(tmpdir(), 'agentctl-recap-'));
   return () => rmSync(cacheDir, { recursive: true, force: true });
 });
 

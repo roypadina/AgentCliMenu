@@ -13,13 +13,13 @@ let cwdDir: string;
 function runCli(args: string[]) {
   return spawnSync('npx', ['tsx', entry, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, CCSM_HOME: home, FORCE_COLOR: '0' },
+    env: { ...process.env, AGENTCTL_HOME: home, FORCE_COLOR: '0' },
   });
 }
 
 beforeAll(() => {
-  home = mkdtempSync(join(tmpdir(), 'ccsm-cli-'));
-  cwdDir = mkdtempSync(join(tmpdir(), 'ccsm-cwd-'));
+  home = mkdtempSync(join(tmpdir(), 'agentctl-cli-'));
+  cwdDir = mkdtempSync(join(tmpdir(), 'agentctl-cwd-'));
   const encoded = cwdDir.replaceAll('/', '-');
   const projDir = join(home, 'projects', encoded);
   mkdirSync(projDir, { recursive: true });

@@ -5,7 +5,7 @@ import { NewScreen } from '../../src/cli/screens/NewScreen.js';
 import { AppShell } from '../../src/cli/screens/AppShell.js';
 import { setScreenResult } from '../../src/cli/router.js';
 import { ConfigError } from '../../src/core/config/types.js';
-import type { AgentCliMenuConfig } from '../../src/core/config/types.js';
+import type { AgentctlConfig } from '../../src/core/config/types.js';
 import type { ProjectDir } from '../../src/core/groupScan.js';
 import type { SessionRecord } from '../../src/core/types.js';
 
@@ -29,7 +29,7 @@ async function sendKey(stdin: { write: (s: string) => void }, key: string): Prom
   await new Promise((r) => setTimeout(r, 10));
 }
 
-const config: AgentCliMenuConfig = {
+const config: AgentctlConfig = {
   groups: [
     { name: 'Frontend', path: '/code/fe', pathRaw: '~/code/fe', color: '#6C91BF' },
     { name: 'Backend', path: '/code/be', pathRaw: '~/code/be', color: '#A855F7' },

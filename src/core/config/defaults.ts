@@ -1,4 +1,4 @@
-import type { AgentCliMenuConfig, ThemeConfig, ToolConfig } from './types.js';
+import type { AgentctlConfig, ThemeConfig, ToolConfig } from './types.js';
 
 /** cld's hex fallback (_cld_hex_rgb). */
 export const DEFAULT_COLOR = '#8888aa';
@@ -24,7 +24,7 @@ export const DEFAULT_RESERVED_KEYS = new Set(['enter', 'ctrl-f', 'ctrl-p', 'ctrl
 
 export const DEFAULT_GUI = { terminal: 'default' as const };
 
-export const DEFAULT_CONFIG: AgentCliMenuConfig = {
+export const DEFAULT_CONFIG: AgentctlConfig = {
   groups: [],
   tools: [DEFAULT_TOOLS.cld, DEFAULT_TOOLS.cdx],
   ides: [],

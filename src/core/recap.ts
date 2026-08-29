@@ -32,16 +32,16 @@ export interface RecapRun {
 }
 
 export interface RecapDeps {
-  /** Override the cache dir (tests). Default: ~/.config/agentclimenu/recaps. */
+  /** Override the cache dir (tests). Default: ~/.config/agentctl/recaps. */
   recapsDir?: string;
   /** Override transcript→excerpt (tests). */
   buildExcerpt?: (jsonlPath: string) => Promise<string>;
   /** Override the agent spawn (tests). Receives argv (after the bin) + the prompt on stdin. */
   run?: (args: string[], input: string) => RecapRun | Promise<RecapRun>;
   now?: () => Date;
-  /** Model for `--model`. Default $CCSM_RECAP_MODEL → 'haiku'. */
+  /** Model for `--model`. Default $AGENTCTL_RECAP_MODEL → 'haiku'. */
   model?: string;
-  /** Binary. Default $CCSM_CLAUDE_BIN → 'claude'. */
+  /** Binary. Default $AGENTCTL_CLAUDE_BIN → 'claude'. */
   bin?: string;
 }
 
@@ -104,7 +104,7 @@ function defaultRun(bin: string): (args: string[], input: string) => RecapRun {
  * Non-blocking spawn runner for in-process callers (the ink TUI) — `spawnSync` would freeze the
  * event loop while the agent thinks. Resolves once the child exits.
  */
-export function spawnRun(bin = process.env.CCSM_CLAUDE_BIN ?? 'claude') {
+export function spawnRun(bin = process.env.AGENTCTL_CLAUDE_BIN ?? 'claude') {
   return (args: string[], input: string): Promise<RecapRun> =>
     new Promise((resolve) => {
       let stdout = '';
@@ -126,15 +126,15 @@ export function spawnRun(bin = process.env.CCSM_CLAUDE_BIN ?? 'claude') {
 
 /** Generate a fresh recap (no caching). Throws RecapError on empty transcript / missing bin / no output. */
 export async function generateRecap(target: RecapTarget, deps: RecapDeps = {}): Promise<string> {
-  const model = deps.model ?? process.env.CCSM_RECAP_MODEL ?? 'haiku';
-  const bin = deps.bin ?? process.env.CCSM_CLAUDE_BIN ?? 'claude';
+  const model = deps.model ?? process.env.AGENTCTL_RECAP_MODEL ?? process.env.CCSM_RECAP_MODEL ?? 'haiku';
+  const bin = deps.bin ?? process.env.AGENTCTL_CLAUDE_BIN ?? 'claude';
   const excerpt = await (deps.buildExcerpt ?? defaultExcerpt)(target.jsonlPath);
   if (!excerpt.trim()) throw new RecapError(4, 'transcript is empty — nothing to recap');
   const prompt = PROMPT_PREFIX + excerpt;
   const run = deps.run ?? defaultRun(bin);
   const res = await run(['-p', '--model', model], prompt);
   if (res.error && (res.error as NodeJS.ErrnoException).code === 'ENOENT') {
-    throw new RecapError(127, `${bin} not found on PATH (override via CCSM_CLAUDE_BIN)`);
+    throw new RecapError(127, `${bin} not found on PATH (override via AGENTCTL_CLAUDE_BIN)`);
   }
   const text = (res.stdout ?? '').trim();
   if (!text) throw new RecapError(res.status ?? 1, 'recap produced no output');

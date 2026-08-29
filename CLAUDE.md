@@ -1,6 +1,6 @@
-# Agent CLI Menu (`agent-cli-menu` / `acm`)
+# Agentctl (`agentctl` / `agentctl`)
 
-Node.js + TypeScript CLI/TUI. One menu with two halves: **New** — start a new Claude/Codex session in a project dir (configurable groups, frecency sort, IDE/tmux/pull/new-dir keys — the old `cld` launcher); **Resume** — search + resume any existing Claude Code session under `~/.claude/` (the old `ccsm`). Commands: `agent-cli-menu` (alias `acm`) → New by default; `-r`/`--resume` → Resume. Local-only, no cloud. Built by merging `cld` (zsh) + `ccsm` into one publishable tool — see `docs/superpowers/plans/2026-06-05-agentclimenu.md`.
+Node.js + TypeScript CLI/TUI. One menu with two halves: **New** — start a new Claude/Codex session in a project dir (configurable groups, frecency sort, IDE/tmux/pull/new-dir keys — the old `cld` launcher); **Resume** — search + resume any existing Claude Code session under `~/.claude/` (the old `ccsm`). Command: `agentctl` → New by default; `-r`/`--resume` → Resume. Local-only, no cloud. Built by merging `cld` (zsh) + `ccsm` into one publishable tool — see `docs/superpowers/plans/2026-06-05-agentctl.md`.
 
 ## Quick reference
 
@@ -11,18 +11,18 @@ Node.js + TypeScript CLI/TUI. One menu with two halves: **New** — start a new 
 | Typecheck | `npm run typecheck` |
 | Build | `npm run build` |
 | Run from source | `npx tsx src/cli/index.ts <args>` |
-| Run built binary | `node bin/agent-cli-menu <args>` |
+| Run built binary | `node bin/agentctl <args>` |
 | Watch tests | `npm run test:watch` |
 | Dev build watch | `npm run dev` |
 
-`bin/agent-cli-menu` is the production entry — it just `import()`s `dist/cli.js`, so you must run `npm run build` before it works. For TS-direct runs use `npx tsx src/cli/index.ts`.
+`bin/agentctl` is the production entry — it just `import()`s `dist/cli.js`, so you must run `npm run build` before it works. For TS-direct runs use `npx tsx src/cli/index.ts`.
 
 ## Layout
 
 ```
 src/core/                 zero ink/react imports — pure data
   types.ts                SessionRecord, ListOptions, LiveSession, TranscriptTurn
-  paths.ts                ccsmHome / projectsDir / sessionsDir (honors CCSM_HOME);
+  paths.ts                claudeHome / projectsDir / sessionsDir (honors AGENTCTL_HOME);
                           claudeHomes / projectsDirs / sessionsDirs = all ~/.claude* profiles
   decode.ts               encoded-cwd → cwd, FS-verified recursive pruned search
   jsonlScan.ts            streaming scan: first prompt, custom-title, ai-title, first ts
@@ -32,9 +32,9 @@ src/core/                 zero ink/react imports — pure data
   sessionRepo.ts          orchestrator: listSessions / getSession
   transcript.ts           JSONL → TranscriptTurn[] (default/full/head+tail modes)
   annotations.ts          user metadata per session (name/note/flags/done/reminder), one JSON
-                          file each under ~/.config/agentclimenu/annotations/, atomic writes
-  recap.ts                on-demand AI recap: claude -p --model haiku on head+tail excerpt, cached to ~/.config/agentclimenu/recaps/<id>.md (DI'd I/O + spawn)
-  config/                 AgentCliMenu launcher config (TOML, smol-toml)
+                          file each under ~/.config/agentctl/annotations/, atomic writes
+  recap.ts                on-demand AI recap: claude -p --model haiku on head+tail excerpt, cached to ~/.config/agentctl/recaps/<id>.md (DI'd I/O + spawn)
+  config/                 Agentctl launcher config (TOML, smol-toml)
     types.ts              GroupConfig/ToolConfig/IdeConfig/ThemeConfig, ConfigError
     paths.ts              configPath chain + expandPath (~ / allowlisted $VAR)
     defaults.ts           DEFAULT_TOOLS (cld/cdx), DEFAULT_RESERVED_KEYS, DEFAULT_CONFIG
@@ -52,7 +52,7 @@ src/cli/                  zero direct fs reads — goes through sessionRepo
   format.ts               formatDate, timeAgo, truncEnd, truncMiddle
 
 tests/                    vitest, fixture trees under tests/fixtures/
-bin/agent-cli-menu                  Node shebang shim → dist/cli.js
+bin/agentctl                  Node shebang shim → dist/cli.js
 docs/superpowers/
   specs/2026-05-22-claude-session-manager-design.md
   plans/2026-05-22-ccsm.md
@@ -79,12 +79,12 @@ docs/superpowers/
   override is cleared. (`jsonlScan` itself is already last-write-wins for repeated `/rename`.)
 - **Session names** come from JSONL in priority order: `type:custom-title.customTitle` (from `/rename`) → `type:ai-title.aiTitle` (auto-generated) → first user prompt (with tag stripping) → `(no prompt yet)`.
 - **Status detection**: a session is `busy`/`idle` only when a matching `<profile>/sessions/<pid>.json` file exists, `kill -0 <pid>` succeeds, and `ps -o comm= -p <pid>` matches `/claude/i`. Otherwise `inactive`.
-- **Scan every Claude profile.** `CLAUDE_CONFIG_DIR` lets one machine run several homes (`~/.claude`, `~/.claude2`, `~/.claude-work`). Each keeps its own `sessions/` dir, so scanning only `~/.claude` reports every side-profile session as `inactive`. `claudeHomes()` globs `~/.claude*` dirs (primary first); `projectsDirs()`/`sessionsDirs()` map + realpath-dedupe them (profiles often symlink `projects/` to the primary — without the dedupe every session would list twice). `CCSM_HOME` still pins the scan to a single home.
+- **Scan every Claude profile.** `CLAUDE_CONFIG_DIR` lets one machine run several homes (`~/.claude`, `~/.claude2`, `~/.claude-work`). Each keeps its own `sessions/` dir, so scanning only `~/.claude` reports every side-profile session as `inactive`. `claudeHomes()` globs `~/.claude*` dirs (primary first); `projectsDirs()`/`sessionsDirs()` map + realpath-dedupe them (profiles often symlink `projects/` to the primary — without the dedupe every session would list twice). `AGENTCTL_HOME` still pins the scan to a single home.
 
-## AgentCliMenu launcher conventions
+## Agentctl launcher conventions
 
-- **Config lives at `~/.config/agentclimenu/config.toml`** (chain: `$AGENTCLIMENU_CONFIG` → `$XDG_CONFIG_HOME/agentclimenu` → `~/.config/agentclimenu`). `$CLD_CONFIG` is intentionally NOT honored — clean break from cld.
-- **`smol-toml`** is the one justified extra dep (TOML is core to New, not a one-off helper). It is TOML-1.0 strict; lax cld configs may need a re-seed (`agent-cli-menu config --setup`).
+- **Config lives at `~/.config/agentctl/config.toml`** (chain: `$AGENTCTL_CONFIG` → `$XDG_CONFIG_HOME/agentctl` → `~/.config/agentctl`). `$CLD_CONFIG` is intentionally NOT honored — clean break from cld.
+- **`smol-toml`** is the one justified extra dep (TOML is core to New, not a one-off helper). It is TOML-1.0 strict; lax cld configs may need a re-seed (`agentctl config --setup`).
 - **Shell var is lowercase `dir`** — IDE `cmd` / tool `runs` reference `$dir` (matching cld's `eval`). The launch executor sets `dir` (lowercase), shell-quoted, and runs via `${SHELL:-/bin/zsh} -c` (NOT `-lc` — no rc re-source).
 - **New rows show git branch always, and a `±N` dirty count for the highlighted row only.**
   `readGitBranch` is zero-spawn and safe on the scan path; `countDirty` (`git status --porcelain`)
@@ -131,7 +131,7 @@ Then drop a leading `/word` or `/skill:command ` prefix from the first user prom
 - File-watcher / live auto-refresh (`r` key manual refresh only).
 - True fuzzy match (current search is whitespace-split AND of case-insensitive substrings).
 - Electron/Tauri/web GUI. (A native SwiftUI menu-bar + window GUI lives in `gui/` — the picker
-  itself: New/Resume lists, new-dir, and a full config editor. It's a thin view over `agent-cli-menu gui …`
+  itself: New/Resume lists, new-dir, and a full config editor. It's a thin view over `agentctl gui …`
   (projects/sessions/new-dir/launch/resume/terminals/config-get/config-save) and never reads
   `~/.claude` or parses TOML itself. Sessions open in the configured terminal; config is shared
   with the TUI.)

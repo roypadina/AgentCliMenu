@@ -1,24 +1,24 @@
 <div align="center">
 
-<img src="docs/demo.gif" alt="Agent CLI Menu demo — fuzzy-filter your projects, switch to Resume, search a past Claude Code session, and peek its transcript before resuming." width="760">
+<img src="docs/demo.gif" alt="Agentctl demo — fuzzy-filter your projects, switch to Resume, search a past Claude Code session, and peek its transcript before resuming." width="760">
 
-# Agent CLI Menu
+# Agentctl
 
 ### One menu for every Claude & Codex session — start a new one in any project, or search and resume an old one.
 
 A fast launcher for coding-agent sessions: pick a project and start **`claude`** / **`codex`**, or
 fuzzy-search and **resume** any past Claude Code session — with a live transcript preview. Ships as a
-terminal menu (**`agent-cli-menu`**, alias **`acm`**) **and** a native macOS menu-bar app that share one config.
+terminal menu (**`agentctl`**, alias **`agentctl`**) **and** a native macOS menu-bar app that share one config.
 
 [![macOS](https://img.shields.io/badge/macOS-12%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Node](https://img.shields.io/badge/Node-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)](https://swift.org)
 [![Homebrew](https://img.shields.io/badge/brew-roypadina%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/roypadina/homebrew-tap)
-[![Release](https://img.shields.io/github/v/release/roypadina/AgentCliMenu?logo=github&label=release)](https://github.com/roypadina/AgentCliMenu/releases/latest)
-[![CI](https://github.com/roypadina/AgentCliMenu/actions/workflows/ci.yml/badge.svg)](https://github.com/roypadina/AgentCliMenu/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/roypadina/Agentctl?logo=github&label=release)](https://github.com/roypadina/Agentctl/releases/latest)
+[![CI](https://github.com/roypadina/Agentctl/actions/workflows/ci.yml/badge.svg)](https://github.com/roypadina/Agentctl/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?logo=opensourceinitiative&logoColor=white)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?logo=github)](CONTRIBUTING.md)
-[![Stars](https://img.shields.io/github/stars/roypadina/AgentCliMenu?style=social)](https://github.com/roypadina/AgentCliMenu/stargazers)
+[![Stars](https://img.shields.io/github/stars/roypadina/Agentctl?style=social)](https://github.com/roypadina/Agentctl/stargazers)
 
 </div>
 
@@ -48,7 +48,7 @@ You start coding-agent sessions all day — `claude` here, `codex` there — and
 back into one from yesterday but can't remember which folder it was in. Claude Code stores every
 session under `~/.claude/`, but there's no good way to *find* one.
 
-Agent CLI Menu is two halves of that workflow in one tool:
+Agentctl is two halves of that workflow in one tool:
 
 - **New** — pick a project directory (grouped, frecency-sorted, fuzzy-filtered) and launch your agent
   there. Open it in your IDE first, in tmux, after a `git pull`, or create a brand-new directory on the fly.
@@ -78,7 +78,7 @@ It's **local-only** — it reads `~/.claude/` and your project folders, and runs
 
 > **The Mac menu-bar app** — start a new session, fuzzy-resume a past one with a transcript peek, then edit the shared config, all from the menu bar:
 >
-> <img src="docs/gui-demo.gif" alt="Agent CLI Menu menu-bar app cycling through the New project launcher, the Resume tab with a live transcript preview, and the Settings config editor." width="430">
+> <img src="docs/gui-demo.gif" alt="Agentctl menu-bar app cycling through the New project launcher, the Resume tab with a live transcript preview, and the Settings config editor." width="430">
 
 > **The Mac GUI — Resume**, with the transcript preview pane open:
 >
@@ -110,14 +110,14 @@ The terminal menu mirrors the same model — start in **New**, `⇥` to **Resume
  ╭──────────────────────────────────────────────┬────────────┬──────────────╮
  │   SESSION                                      │ BRANCH     │ LAST USED    │
  ├──────────────────────────────────────────────┼────────────┼──────────────┤
- │ ▶ ● AgentCliMenu — GUI keyboard nav            │ main       │ 2m ago       │
+ │ ▶ ● Agentctl — GUI keyboard nav            │ main       │ 2m ago       │
  │   ○ Recover Edge profiles after crash          │ main       │ 19h ago      │
  │   ○ reeco-item-classifier POC                  │ poc/bert   │ 2d ago       │
  ╰──────────────────────────────────────────────┴────────────┴──────────────╯
- ╭ AgentCliMenu — GUI keyboard nav ─────────────────────────────────────────╮
+ ╭ Agentctl — GUI keyboard nav ─────────────────────────────────────────╮
  │ a1b2c3d4 · ● busy · ⎇ main                                                │
  │ started Jun 5 13:06 · last used Jun 9 17:30 (2m ago)                      │
- │ ~/Code/Padina/AgentCliMenu                                                │
+ │ ~/Code/Padina/Agentctl                                                │
  │ recap  • Redesigned Resume as a bordered table with a details pane.       │
  │        • Added an AI recap (claude -p · haiku, cached).                   │
  ╰───────────────────────────────────────────────────────────────────────────╯
@@ -129,56 +129,56 @@ The terminal menu mirrors the same model — start in **New**, `⇥` to **Resume
 
 > **Requires macOS 12+** and **Node 18+** (the terminal menu runs on Node; the GUI bundles its CLI and depends on Node via Homebrew).
 
-### Homebrew (GUI app + `agent-cli-menu` CLI, one install)
+### Homebrew (GUI app + `agentctl` CLI, one install)
 
 ```bash
-brew install --cask roypadina/tap/agentclimenu
+brew install --cask roypadina/tap/agentctl
 ```
 
-This installs **Agent CLI Menu.app** (the menu-bar GUI) and puts **`agent-cli-menu`** (plus the short alias **`acm`**) on your `PATH`.
+This installs **Agentctl.app** (the menu-bar GUI) and puts **`agentctl`** (plus the short alias **`agentctl`**) on your `PATH`.
 
-> Agent CLI Menu is ad-hoc signed (not notarized). On first launch, **right-click Agent CLI Menu in
+> Agentctl is ad-hoc signed (not notarized). On first launch, **right-click Agentctl in
 > `/Applications` → Open** (then Open again), or run once:
 > ```bash
-> xattr -dr com.apple.quarantine "/Applications/Agent CLI Menu.app"
+> xattr -dr com.apple.quarantine "/Applications/Agentctl.app"
 > ```
 > See [Is it safe?](#is-it-safe).
 
 ### From source
 
 ```bash
-git clone https://github.com/roypadina/AgentCliMenu.git
-cd AgentCliMenu
+git clone https://github.com/roypadina/Agentctl.git
+cd Agentctl
 npm install
 npm run build
-npm link            # puts agent-cli-menu + acm on your PATH
+npm link            # puts agentctl + agentctl on your PATH
 
 # optional: build the Mac GUI
 bash gui/build-app.sh
-open "gui/Agent CLI Menu.app"
+open "gui/Agentctl.app"
 ```
 
-First run sets up a starter config: `agent-cli-menu config --setup`.
+First run sets up a starter config: `agentctl config --setup`.
 
 ## The terminal menu
 
-`agent-cli-menu` opens the menu — **New** by default, `⇥` to **Resume** (or jump straight there with `-r`).
-**`acm`** is a shorter alias for the exact same tool. Want `cld`/`cdx`-style per-tool shortcuts? Add your own aliases.
+`agentctl` opens the menu — **New** by default, `⇥` to **Resume** (or jump straight there with `-r`).
+**`agentctl`** is a shorter alias for the exact same tool. Want `cld`/`cdx`-style per-tool shortcuts? Add your own aliases.
 
 | Command | Opens |
 |---|---|
-| `agent-cli-menu` &nbsp;·&nbsp; `acm` | New-session menu (`⇥` to Resume) |
-| `agent-cli-menu -r` &nbsp;·&nbsp; `acm -r` | Resume menu |
+| `agentctl` &nbsp;·&nbsp; `agentctl` | New-session menu (`⇥` to Resume) |
+| `agentctl -r` &nbsp;·&nbsp; `agentctl -r` | Resume menu |
 
 Plus non-interactive subcommands:
 
 ```bash
-agent-cli-menu ls [--cwd <path>] [--active] [--json] [--sort updated|started|name] [--limit N]
-agent-cli-menu peek <id> [--full] [--head N --tail N]   # print a transcript
-agent-cli-menu recap <id> [--refresh]                   # AI summary of a session (cached)
-agent-cli-menu resume <id> [--yes] [--cwd <override>]   # resume by id (prefix ≥ 4 chars)
-agent-cli-menu path <id>                                # print the .jsonl path
-agent-cli-menu config --setup | --edit | --path         # manage the shared config
+agentctl ls [--cwd <path>] [--active] [--json] [--sort updated|started|name] [--limit N]
+agentctl peek <id> [--full] [--head N --tail N]   # print a transcript
+agentctl recap <id> [--refresh]                   # AI summary of a session (cached)
+agentctl resume <id> [--yes] [--cwd <override>]   # resume by id (prefix ≥ 4 chars)
+agentctl path <id>                                # print the .jsonl path
+agentctl config --setup | --edit | --path         # manage the shared config
 ```
 
 ### Keys
@@ -198,29 +198,29 @@ Sessions arrive named after your first prompt, which ages badly. Give them a rea
 else you'd want to remember about them:
 
 ```bash
-acm name  "billing spike"     # rename it; as many times as you like
-acm note  "waiting on Dor"    # a note that shows under the row
-acm flag  todo later          # tags; the picker's filter searches them
-acm remind 2h                 # or 30m · 3d · tomorrow 9am · 17:00 · an ISO date
-acm done                      # finished (--undo reopens); h hides done sessions
-acm annotations               # everything you've annotated  (--due for what's come due)
+agentctl name  "billing spike"     # rename it; as many times as you like
+agentctl note  "waiting on Dor"    # a note that shows under the row
+agentctl flag  todo later          # tags; the picker's filter searches them
+agentctl remind 2h                 # or 30m · 3d · tomorrow 9am · 17:00 · an ISO date
+agentctl done                      # finished (--undo reopens); h hides done sessions
+agentctl annotations               # everything you've annotated  (--due for what's come due)
 ```
 
 Run inside a Claude session, they target **that** session — no id needed. From anywhere else, add
 `-s <id-or-prefix>`. Rows show `✓` done, `⚑` flagged, `✎` noted, `◆` reminder (red once due).
 
-It's stored in `~/.config/agentclimenu/annotations/<session-id>.json`, one small file per session,
+It's stored in `~/.config/agentctl/annotations/<session-id>.json`, one small file per session,
 deliberately outside `~/.claude` — nothing here can corrupt a transcript.
 
 ### From inside Claude Code
 
-The [`acm-sessions` plugin](plugins/acm-sessions) adds `/acm-name`, `/acm-note`, `/acm-flag`,
-`/acm-remind` and `/acm-done`, plus a `SessionStart` hook that hands each session its own name, note
+The [`agentctl-sessions` plugin](plugins/agentctl-sessions) adds `/agentctl-name`, `/agentctl-note`, `/agentctl-flag`,
+`/agentctl-remind` and `/agentctl-done`, plus a `SessionStart` hook that hands each session its own name, note
 and flags — and asks an unnamed one to name itself once the first task is clear.
 
 ```
-/plugin marketplace add roypadina/AgentCliMenu
-/plugin install acm-sessions@agent-cli-menu
+/plugin marketplace add roypadina/Agentctl
+/plugin install agentctl-sessions@agentctl
 ```
 
 ## Several Claude accounts
@@ -242,7 +242,7 @@ label = " ⚡ Work account "
 ## The Mac GUI
 
 A SwiftUI menu-bar agent (look for **✦** in the menu bar). Click it for the popover, or detach into a
-resizable window. It's a thin view over the same `agent-cli-menu` back-end — it never parses your config or reads
+resizable window. It's a thin view over the same `agentctl` back-end — it never parses your config or reads
 `~/.claude` itself.
 
 - **Fully keyboard-driven** — type to filter, `↑/↓` to select, `↵` to launch/resume, `⇥` to switch tabs,
@@ -263,10 +263,10 @@ resizable window. It's a thin view over the same `agent-cli-menu` back-end — i
 One TOML file, shared by the terminal and the GUI:
 
 ```
-$AGENTCLIMENU_CONFIG  →  $XDG_CONFIG_HOME/agentclimenu/config.toml  →  ~/.config/agentclimenu/config.toml
+$AGENTCTL_CONFIG  →  $XDG_CONFIG_HOME/agentctl/config.toml  →  ~/.config/agentctl/config.toml
 ```
 
-`agent-cli-menu config --setup` writes a starter; `agent-cli-menu config --edit` opens it; the GUI's **Settings** edits the same file.
+`agentctl config --setup` writes a starter; `agentctl config --edit` opens it; the GUI's **Settings** edits the same file.
 See [`config.example.toml`](config.example.toml) for every option. The shape:
 
 ```toml
@@ -299,14 +299,14 @@ A clean two-layer split keeps the logic reusable and testable:
 |---|---|
 | **`src/core/`** | Pure data — zero React/ink. Session scan & cwd-decode, streaming JSONL parse, live-PID status, git branch, fuzzy matcher, TOML config, project scanner, launch planner. Unit-tested. |
 | **`src/cli/`** | The ink TUI (New + Resume tabs, peek, search) and the non-interactive subcommands. The only layer that touches presentation. |
-| **`gui/`** | A native SwiftUI menu-bar + window app. A thin client over `agent-cli-menu gui …` (JSON in, launch out) — it imports none of the Node code and re-reads nothing. |
+| **`gui/`** | A native SwiftUI menu-bar + window app. A thin client over `agentctl gui …` (JSON in, launch out) — it imports none of the Node code and re-reads nothing. |
 
 Session names come from the transcript in priority order: a `/rename` custom title → an auto-generated
 title → the first user prompt. Status (`busy`/`idle`/`inactive`) is derived from a live PID file plus a
 `kill -0` / `ps` check. Working directories are decoded from Claude Code's ambiguous `-`-encoded folder
 names by walking the filesystem — and flagged when the result isn't certain.
 
-📖 Full docs are in the **[Wiki](https://github.com/roypadina/AgentCliMenu/wiki)** (Installation · Commands · Configuration · GUI · Architecture · FAQ). See [`CLAUDE.md`](CLAUDE.md) for the contributor module map.
+📖 Full docs are in the **[Wiki](https://github.com/roypadina/Agentctl/wiki)** (Installation · Commands · Configuration · GUI · Architecture · FAQ). See [`CLAUDE.md`](CLAUDE.md) for the contributor module map.
 
 ## Is it safe?
 
@@ -323,10 +323,10 @@ names by walking the filesystem — and flagged when the result isn't certain.
 ## Uninstall
 
 ```bash
-brew uninstall --cask agentclimenu        # if installed via Homebrew
-# or: npm unlink -g agentclimenu          # if installed from source via npm link
+brew uninstall --cask agentctl        # if installed via Homebrew
+# or: npm unlink -g agentctl          # if installed from source via npm link
 
-rm -rf ~/.config/agentclimenu             # forget config (optional)
+rm -rf ~/.config/agentctl             # forget config (optional)
 ```
 
 ## Contributing
@@ -340,7 +340,7 @@ npm test && npm run typecheck && npm run build   # the whole check
 
 ## Support
 
-If Agent CLI Menu saves you some clicks and tab-hunting, you can
+If Agentctl saves you some clicks and tab-hunting, you can
 [**buy me a coffee on Ko-fi ☕**](https://ko-fi.com/roypadina) — totally optional, always appreciated.
 A **⭐ star** helps just as much.
 

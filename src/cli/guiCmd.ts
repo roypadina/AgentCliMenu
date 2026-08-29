@@ -17,7 +17,7 @@ import {
   isReminderDue, isValidSessionId, normalizeFlag, parseWhen, readAnnotation, writeAnnotation,
   type AnnotationPatch,
 } from '../core/annotations.js';
-import type { AgentCliMenuConfig } from '../core/config/types.js';
+import type { AgentctlConfig } from '../core/config/types.js';
 
 function readStdin(): Promise<string> {
   return new Promise((resolve) => {
@@ -49,14 +49,14 @@ function spawnDetached(cmd: string, args: string[]): void {
 }
 
 /** Open `command` in the configured terminal, running in `cwd`. */
-export function openSession(command: string, cwd: string, config: AgentCliMenuConfig): void {
+export function openSession(command: string, cwd: string, config: AgentctlConfig): void {
   const plan = planTerminal({
     terminal: config.gui.terminal,
     customTemplate: config.gui.launchCommand,
     command,
     cwd,
   });
-  const dir = mkdtempSync(join(tmpdir(), 'agentclimenu-'));
+  const dir = mkdtempSync(join(tmpdir(), 'agentctl-'));
   const script = join(dir, 'launch.command');
   writeFileSync(script, plan.scriptBody);
   chmodSync(script, 0o755);
@@ -150,7 +150,7 @@ export function registerGuiCommands(program: Command): void {
         console.log(JSON.stringify({ ok: false, error: 'invalid id' }));
         process.exit(3);
       }
-      const bin = process.env.CCSM_CLAUDE_BIN ?? 'claude';
+      const bin = process.env.AGENTCTL_CLAUDE_BIN ?? process.env.CCSM_CLAUDE_BIN ?? 'claude';
       // Same rule as the TUI: run under the session's own profile, never the ambient one
       // (see cli/resume.ts resumeEnv — a mismatch can silently use the wrong account).
       const profile = s.configDir ? `CLAUDE_CONFIG_DIR=${shellQuote(s.configDir)} ` : '';
@@ -274,7 +274,7 @@ export function registerGuiCommands(program: Command): void {
       if (c.launchCommand) guiObj.launch_command = c.launchCommand;
       if (c.hotkey) guiObj.hotkey = c.hotkey;
       obj.gui = guiObj;
-      const text = `# Agent CLI Menu config — editable by hand or via the GUI (agent-cli-menu config --edit).\n\n${tomlStringify(obj)}\n`;
+      const text = `# Agentctl config — editable by hand or via the GUI (agentctl config --edit).\n\n${tomlStringify(obj)}\n`;
       const p = configPath();
       mkdirSync(dirname(p), { recursive: true });
       writeFileSync(p, text);

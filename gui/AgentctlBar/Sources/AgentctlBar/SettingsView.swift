@@ -16,7 +16,7 @@ private struct EGroup: Identifiable { let id = UUID(); var name: String; var pat
 private struct ETool: Identifiable { let id = UUID(); var name: String; var runs: String; var label: String; var color: String }
 private struct EIde: Identifiable { let id = UUID(); var key: String; var label: String; var cmd: String }
 
-/// Full config editor. Writes the same config the TUI reads (via `agent-cli-menu gui config-save`).
+/// Full config editor. Writes the same config the TUI reads (via `agentctl gui config-save`).
 struct SettingsView: View {
     var onSaved: () -> Void = {}
     @Environment(\.dismiss) private var dismiss

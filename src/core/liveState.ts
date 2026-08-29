@@ -98,11 +98,11 @@ function parentPid(pid: number): number | null {
 /**
  * The session id of the Claude process we are running *inside*, or null when standalone.
  * Walks the parent-pid chain (a hook/shell can be several levels below claude) and matches
- * against the live session files. Lets `acm note --current …` work with no arguments.
+ * against the live session files. Lets `agentctl note --current …` work with no arguments.
  */
 export function currentSessionId(startPid = process.pid): string | null {
   // Same liveness filter as liveSessionById — a stale pid file whose pid got recycled by an
-  // ancestor shell would otherwise make `acm note` annotate a long-dead session.
+  // ancestor shell would otherwise make `agentctl note` annotate a long-dead session.
   const byPid = new Map(readLiveSessions().filter(isLiveClaude).map(s => [s.pid, s.sessionId]));
   if (byPid.size === 0) return null;
   let pid: number | null = startPid;

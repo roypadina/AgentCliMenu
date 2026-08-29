@@ -98,7 +98,7 @@ export interface ListOptions {
 ```
 src/core/                 // zero ink/react imports
   types.ts                // shapes above
-  paths.ts                // resolves ~/.claude; supports CCSM_HOME env override
+  paths.ts                // resolves ~/.claude; supports AGENTCTL_HOME env override
   decode.ts               // encoded-cwd → cwd, with FS verification (§5.1)
   liveState.ts            // reads ~/.claude/sessions/*.json + kill -0 + ps check
   jsonlScan.ts            // streaming scan: first prompt, first/last timestamps
@@ -154,7 +154,7 @@ ccsm --version | --help
 - `--json` on `ls` emits an array of `SessionRecord` with `Date`s as ISO strings.
 - Default `ls` sort: `updated` descending.
 - Active sessions are tagged in the TUI: 🟢 busy / 🟡 idle / ⚪ inactive (falls back to letters `B / I / -` if `NO_COLOR` or `CI` is set).
-- Global flags: `--ccsm-home <path>` and env `CCSM_HOME` override `~/.claude` (used in tests).
+- Global flags: `--ccsm-home <path>` and env `AGENTCTL_HOME` override `~/.claude` (used in tests).
 - Exit codes: `0` ok, `1` not found, `2` ambiguous prefix, `3` cwd missing on resume, `127` `claude` binary missing.
 
 ## 7. TUI flow (ink)
@@ -211,7 +211,7 @@ export async function resume(s: SessionRecord, opts: { yes?: boolean } = {}) {
   if (s.active && s.status === 'busy' && !opts.yes) {
     // TUI: interactive confirm. CLI: require --yes.
   }
-  const claudeBin = process.env.CCSM_CLAUDE_BIN ?? 'claude';
+  const claudeBin = process.env.AGENTCTL_CLAUDE_BIN ?? 'claude';
   await unmountInkIfMounted();
   const child = spawnSync(
     claudeBin,
@@ -236,14 +236,14 @@ Notes:
 | Truncated JSONL (mid-write) | Active session | Streaming parser tolerates partial last line. |
 | `kill -0` race | PID recycled to non-claude process | Cross-check `ps -o comm=`; if mismatch, mark inactive. |
 | Ambiguous cwd decode | `cwdDecodeConfident: false` | Show best-guess with warning glyph in TUI; `resume` refuses without `--cwd <override>`. |
-| `claude` binary missing | resume only | Exit 127 with message: `"claude not found on PATH (override via CCSM_CLAUDE_BIN)"`. |
+| `claude` binary missing | resume only | Exit 127 with message: `"claude not found on PATH (override via AGENTCTL_CLAUDE_BIN)"`. |
 
 No defensive validation elsewhere — trust internal code.
 
 ## 10. Testing strategy
 
 - **Unit (vitest):** `decode.ts`, `jsonlScan.ts` (fixtures: empty, single-turn, partial last line, malformed lines, with `<system-reminder>` blocks), `transcript.ts` (golden snapshots), `liveState.ts` (mocked fs + `kill -0` + `ps`).
-- **Integration:** create a tmp directory tree, set `CCSM_HOME=$tmp`, run `ccsm ls --json` and `ccsm peek <id>`, snapshot the output.
+- **Integration:** create a tmp directory tree, set `AGENTCTL_HOME=$tmp`, run `ccsm ls --json` and `ccsm peek <id>`, snapshot the output.
 - **TUI smoke:** `ink-testing-library` to render the app, simulate keys, assert focused row and peek pane content.
 - **Resume:** unit-test argv construction with a stubbed `spawnSync`. No real `claude` launch in tests.
 

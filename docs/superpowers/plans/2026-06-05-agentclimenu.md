@@ -1,13 +1,13 @@
-# AgentCliMenu — implementation plan
+# Agentctl — implementation plan
 
 > **Historical (dated 2026-06-05).** This captures the original plan. Since then the product
-> shipped as **Agent CLI Menu**, and the three commands `cm`/`cld`/`ccsm` (with `CM_ENTRY`) were
-> replaced by a single **`agent-cli-menu`** (alias **`acm`**): default opens New, `-r`/`--resume`
+> shipped as **Agentctl**, and the three commands `cm`/`cld`/`ccsm` (with `CM_ENTRY`) were
+> replaced by a single **`agentctl`** (alias **`agentctl`**): default opens New, `-r`/`--resume`
 > opens Resume. See [`CHANGELOG.md`](../../../CHANGELOG.md) for current behavior.
 
 Merge the **cld** zsh project-launcher and **ccsm** session-manager into one publishable Node/TS + ink tool. Built by extending this repo (cloned from ccsm, history preserved). ESM-only, `moduleResolution:Bundler` (`.js` import extensions), hard `src/core/` (no ink) ↔ `src/cli/` split.
 
-Top-level UX: a root chooser **New session** vs **Resume session** (equal footing), each its own screen. Commands: `cm` → root, `cld` → New, `ccsm` → Resume (+ existing `ls`/`peek`/`resume`/`path`). Config in `~/.config/agentclimenu/config.toml`. Mac menu-bar GUI opens a configurable terminal running `cm`.
+Top-level UX: a root chooser **New session** vs **Resume session** (equal footing), each its own screen. Commands: `cm` → root, `cld` → New, `ccsm` → Resume (+ existing `ls`/`peek`/`resume`/`path`). Config in `~/.config/agentctl/config.toml`. Mac menu-bar GUI opens a configurable terminal running `cm`.
 
 Derived from a 20-agent understand→design→adversarial-review→synthesize workflow (2026-06-05). Key facts verified against live source / ink 5.2.1.
 
@@ -32,9 +32,9 @@ Reserved keys: `enter`, `ctrl-f`, `ctrl-p`, `ctrl-t`, `ctrl-n`.
 
 ## Phase 1 — Core + Config (pure, TDD)
 
-Add under `src/core/config/`: `types.ts`, `paths.ts` (chain: `AGENTCLIMENU_CONFIG` → `$XDG_CONFIG_HOME/agentclimenu` → `~/.config/agentclimenu`; **drop `CLD_CONFIG`**), `defaults.ts`, `validate.ts`, `loadConfig.ts` (smol-toml, mtime+size cache, `ConfigError(5)` on TomlError, `ConfigError(6)` on shape, `clearConfigCache`, `getTool`). Add `src/core/groupScan.ts` (`listProjects`, `parseZDb` path|rank|time field 2 seconds, `sortGroup` z→mtime, optional `readGitBranch`, one-level, dangling-symlink guard, **no listSessions/ps/jsonl**). Add `src/core/launchSpec.ts` (pure planner: `planLaunch`, `resolveNewDir`, `defaultNewDirChoice`, `sanitizeTmuxName`; maps key→kind+steps mirroring cld dispatch).
+Add under `src/core/config/`: `types.ts`, `paths.ts` (chain: `AGENTCTL_CONFIG` → `$XDG_CONFIG_HOME/agentctl` → `~/.config/agentctl`; **drop `CLD_CONFIG`**), `defaults.ts`, `validate.ts`, `loadConfig.ts` (smol-toml, mtime+size cache, `ConfigError(5)` on TomlError, `ConfigError(6)` on shape, `clearConfigCache`, `getTool`). Add `src/core/groupScan.ts` (`listProjects`, `parseZDb` path|rank|time field 2 seconds, `sortGroup` z→mtime, optional `readGitBranch`, one-level, dangling-symlink guard, **no listSessions/ps/jsonl**). Add `src/core/launchSpec.ts` (pure planner: `planLaunch`, `resolveNewDir`, `defaultNewDirChoice`, `sanitizeTmuxName`; maps key→kind+steps mirroring cld dispatch).
 
-Change: `package.json` name→`agentclimenu`, add `smol-toml`, `files` allowlist. Add root `config.example.toml` (cld schema). Update `CLAUDE.md`.
+Change: `package.json` name→`agentctl`, add `smol-toml`, `files` allowlist. Add root `config.example.toml` (cld schema). Update `CLAUDE.md`.
 
 Tests: `config.test.ts`, `config.example.test.ts` (zero warnings), `groupScan.test.ts`, `launchSpec.test.ts`. Verify `npm test && npm run typecheck`.
 
@@ -48,14 +48,14 @@ Tests: `launch.test.ts` (B5 dir lowercase+quoted), `router.test.ts` (one pending
 
 ## Phase 3 — Homebrew packaging
 
-`Formula/agentclimenu.rb` (private git url+tag+revision (tap formula); `depends_on node, :macos`; ship-built-dist install; three shims w/ absolute path + `CM_ENTRY`; `bin.install_symlink`; caveats: `cm config --setup`, remove old `source cld.zsh`). `package.json` bins. Verify `brew audit`, clean-sandbox install, all three argv0s dispatch. **No push** until explicit OK.
+`Formula/agentctl.rb` (private git url+tag+revision (tap formula); `depends_on node, :macos`; ship-built-dist install; three shims w/ absolute path + `CM_ENTRY`; `bin.install_symlink`; caveats: `cm config --setup`, remove old `source cld.zsh`). `package.json` bins. Verify `brew audit`, clean-sandbox install, all three argv0s dispatch. **No push** until explicit OK.
 
 ## Phase 4 — Mac GUI (menu-bar)
 
-`src/core/guiConfig.ts` (pure) + `src/cli/guiConfigCmd.ts` (`cm gui-config --for <root|new|resume>` → JSON `{contractVersion,terminal,launchCommand,cmBin,configPath,invocation,warnings}`; cmBin resolved here). Swift `gui/AgentCliMenuBar/` (`NSStatusItem`, `LSUIElement`, probe `cm`, JSON-decode all-optional + contractVersion, argv-passed osascript launcher, `open -a` fallback, custom `{{cmd}}`). `[gui]` table in config.example. Ad-hoc signed like Cloney.
+`src/core/guiConfig.ts` (pure) + `src/cli/guiConfigCmd.ts` (`cm gui-config --for <root|new|resume>` → JSON `{contractVersion,terminal,launchCommand,cmBin,configPath,invocation,warnings}`; cmBin resolved here). Swift `gui/AgentctlBar/` (`NSStatusItem`, `LSUIElement`, probe `cm`, JSON-decode all-optional + contractVersion, argv-passed osascript launcher, `open -a` fallback, custom `{{cmd}}`). `[gui]` table in config.example. Ad-hoc signed like Cloney.
 
 ## Stays from ccsm unchanged
-All `src/core/` data engine (types, paths, decode, jsonlScan, git `readGitBranch`, search, transcript; sessionRepo/liveState get B9 patch only). `resume.ts` (non-interactive path) as `LaunchDeps` template. `format.ts`, `render.ts`, `peek.ts`. ESM/tsup/lazy-chunk model. Sessions stay under `~/.claude` (honors `CCSM_HOME`); only launcher CONFIG moves to `~/.config/agentclimenu`. `--dangerously-skip-permissions` hardcoded; status semantics; tag-stripping; existing subcommands (back-compat under `ccsm`).
+All `src/core/` data engine (types, paths, decode, jsonlScan, git `readGitBranch`, search, transcript; sessionRepo/liveState get B9 patch only). `resume.ts` (non-interactive path) as `LaunchDeps` template. `format.ts`, `render.ts`, `peek.ts`. ESM/tsup/lazy-chunk model. Sessions stay under `~/.claude` (honors `AGENTCTL_HOME`); only launcher CONFIG moves to `~/.config/agentctl`. `--dangerously-skip-permissions` hardcoded; status semantics; tag-stripping; existing subcommands (back-compat under `ccsm`).
 
 ## Risks
 Real-tty handoff is unit-untestable → mandatory manual type-ahead test before release. smol-toml is strict → surface `.line` on error; re-seed via `cm config --setup`. Shell-eval of user config = trusted (like `.zshrc`). `cld` sourced function shadows the new bin → migration caveat + future `cm doctor`. cwd-follow: a binary can't chdir parent shell → New returns to original pwd (optional zsh wrapper later).

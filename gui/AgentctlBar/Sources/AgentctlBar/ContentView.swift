@@ -175,7 +175,7 @@ struct ContentView: View {
                         if newFlat.isEmpty {
                             emptyState(
                                 (projects?.groups.isEmpty ?? true)
-                                    ? "No groups configured.\nRun: agent-cli-menu config --setup"
+                                    ? "No groups configured.\nRun: agentctl config --setup"
                                     : query.isEmpty ? "No project dirs found." : "No matches for “\(query)”."
                             )
                         }
@@ -233,7 +233,7 @@ struct ContentView: View {
     }
 
     /// Name / flags / note / done / reminder, editable in place. Each field commits on ⏎; the
-    /// buttons commit immediately. Same store the TUI and the `acm` commands write.
+    /// buttons commit immediately. Same store the TUI and the `agentctl` commands write.
     @ViewBuilder
     private func annotationEditor(_ s: Session) -> some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -559,8 +559,8 @@ struct ContentView: View {
         if tab == .resume { await loadSessions() }
     }
     private func describe(_ e: Error) -> String {
-        if case CmError.notFound = e { return "agent-cli-menu not found. Install it (brew or npm link)." }
-        if case CmError.failed(let m) = e { return "agent-cli-menu error: \(m)" }
+        if case CmError.notFound = e { return "agentctl not found. Install it (brew or npm link)." }
+        if case CmError.failed(let m) = e { return "agentctl error: \(m)" }
         return "\(e)"
     }
 }

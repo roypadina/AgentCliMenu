@@ -8,7 +8,7 @@ import {
 } from '../../src/core/annotations.js';
 
 let dir: string;
-beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'acm-ann-')); });
+beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'agentctl-ann-')); });
 afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
 const ID = 'f0582ec2-6af9-4b5e-afb9-26593439be61';
@@ -87,12 +87,12 @@ describe('normalizeFlag', () => {
 describe('isReminderDue', () => {
   const now = new Date('2026-08-29T12:00:00Z');
   it('is due once the timestamp passes', () => {
-    expect(isReminderDue({ sessionId: ID, flags: [], done: false, remindAt: '2026-08-29T11:00:00Z' }, now)).toBe(true);
-    expect(isReminderDue({ sessionId: ID, flags: [], done: false, remindAt: '2026-08-29T13:00:00Z' }, now)).toBe(false);
+    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: false, remindAt: '2026-08-29T11:00:00Z' }, now)).toBe(true);
+    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: false, remindAt: '2026-08-29T13:00:00Z' }, now)).toBe(false);
   });
   it('is never due for a done session or a bad timestamp', () => {
-    expect(isReminderDue({ sessionId: ID, flags: [], done: true, remindAt: '2020-01-01T00:00:00Z' }, now)).toBe(false);
-    expect(isReminderDue({ sessionId: ID, flags: [], done: false, remindAt: 'soonish' }, now)).toBe(false);
+    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: true, remindAt: '2020-01-01T00:00:00Z' }, now)).toBe(false);
+    expect(isReminderDue({ sessionId: ID, flags: [], labels: [], done: false, remindAt: 'soonish' }, now)).toBe(false);
     expect(isReminderDue(undefined, now)).toBe(false);
   });
 });

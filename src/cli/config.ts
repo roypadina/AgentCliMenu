@@ -16,7 +16,7 @@ export function runSetup(): void {
     copyFileSync(exampleConfigPath(), cfg);
     console.log(`seeded config at ${cfg}`);
   }
-  console.log('edit it with:  agent-cli-menu config --edit');
+  console.log('edit it with:  agentctl config --edit');
 }
 
 export function runEdit(): void {
@@ -44,7 +44,7 @@ export function setGuiTerminal(value: string, command?: string): string {
 export function registerConfigCommands(program: Command): void {
   program
     .command('config')
-    .description('manage the AgentCliMenu config')
+    .description('manage the Agentctl config')
     .option('--setup', 'create the config from the example')
     .option('--edit', 'open the config in $EDITOR')
     .option('--path', 'print the config path')

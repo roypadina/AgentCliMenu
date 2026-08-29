@@ -13,12 +13,12 @@ let xdg: string;
 function runCli(args: string[]) {
   return spawnSync('npx', ['tsx', entry, ...args], {
     encoding: 'utf8',
-    // XDG_CONFIG_HOME redirects the annotation store; CCSM_HOME keeps the session scan empty+fast.
-    env: { ...process.env, XDG_CONFIG_HOME: xdg, CCSM_HOME: join(xdg, 'no-sessions'), FORCE_COLOR: '0' },
+    // XDG_CONFIG_HOME redirects the annotation store; AGENTCTL_HOME keeps the session scan empty+fast.
+    env: { ...process.env, XDG_CONFIG_HOME: xdg, AGENTCTL_HOME: join(xdg, 'no-sessions'), FORCE_COLOR: '0' },
   });
 }
 
-beforeAll(() => { xdg = mkdtempSync(join(tmpdir(), 'acm-annotate-cli-')); });
+beforeAll(() => { xdg = mkdtempSync(join(tmpdir(), 'agentctl-annotate-cli-')); });
 afterAll(() => { rmSync(xdg, { recursive: true, force: true }); });
 
 describe('annotation commands', () => {

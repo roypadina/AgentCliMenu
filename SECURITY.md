@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-Agent CLI Menu launches shell commands and reads your Claude Code session files, so security
+Agentctl launches shell commands and reads your Claude Code session files, so security
 reports are taken seriously. Please **do not** open a public issue for security problems.
 
 Instead, use GitHub's private vulnerability reporting
@@ -13,10 +13,10 @@ and the report disclosed, with credit unless you prefer otherwise.
 
 ## Scope
 
-Agent CLI Menu runs entirely on-device and makes no network calls of its own. Relevant areas:
+Agentctl runs entirely on-device and makes no network calls of its own. Relevant areas:
 
 - **Command launching** — tool/IDE commands from your config are executed in a shell; session
   ids are interpolated into the resume command (validated against a strict charset first).
-- **Config parsing** — the shared TOML config is read from `~/.config/agentclimenu/`.
+- **Config parsing** — the shared TOML config is read from `~/.config/agentctl/`.
 - **Session reading** — `~/.claude/` transcripts are parsed read-only.
-- **The Mac GUI** runs un-sandboxed and ad-hoc signed; it shells out only to the bundled `agent-cli-menu`.
+- **The Mac GUI** runs un-sandboxed and ad-hoc signed; it shells out only to the bundled `agentctl`.

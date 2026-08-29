@@ -1,4 +1,4 @@
-# Demo GIF for Agent CLI Menu — render with:  bash docs/demo-fixture.sh && vhs docs/demo.tape
+# Demo GIF for Agentctl — render with:  bash docs/demo-fixture.sh && vhs docs/demo.tape
 # Records against a throwaway fake dataset (docs/demo-fixture.sh) — never real ~/.claude data.
 Output docs/demo.gif
 
@@ -12,14 +12,14 @@ Set TypingSpeed 55ms
 
 # point HOME/config/sessions at the fake dataset (HOME makes paths render as ~/code/…)
 Hide
-Type `export HOME=/private/tmp/acmdemo CCSM_HOME=/private/tmp/acmdemo/.claude AGENTCLIMENU_CONFIG=/private/tmp/acmdemo/config.toml PATH=/opt/homebrew/bin:$PATH`
+Type `export HOME=/private/tmp/acmdemo AGENTCTL_HOME=/private/tmp/acmdemo/.claude AGENTCTL_CONFIG=/private/tmp/acmdemo/config.toml PATH=/opt/homebrew/bin:$PATH`
 Enter
 Type "clear"
 Enter
 Show
 
 # New — fuzzy-filter your projects
-Type "agent-cli-menu"
+Type "agentctl"
 Enter
 Sleep 1.8s
 Type "web"

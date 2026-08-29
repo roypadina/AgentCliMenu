@@ -33,10 +33,15 @@ export interface Annotation {
   /** Overrides every JSONL-derived title when set. */
   name?: string;
   note?: string;
+  /** Short status markers you set for yourself: todo, later, blocked. Rendered as badges. */
   flags: string[];
+  /** Descriptive tags that link a session to something: a Jira key, a repo, a topic. Searchable. */
+  labels: string[];
   done: boolean;
-  /** ISO timestamp. */
+  /** ISO timestamp — nudge me at this time. */
   remindAt?: string;
+  /** ISO timestamp — the work itself is due at this time. */
+  dueAt?: string;
   updatedAt?: string;
 }
 

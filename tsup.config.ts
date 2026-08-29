@@ -11,5 +11,5 @@ export default defineConfig({
   target: 'node18',
   clean: true,
   sourcemap: true,
-  define: { __ACM_VERSION__: JSON.stringify(version) },
+  define: { __AGENTCTL_VERSION__: JSON.stringify(version) },
 });

@@ -25,13 +25,28 @@ export interface AnnotationPatch {
   note?: string | null;
   addFlags?: string[];
   removeFlags?: string[];
+  addLabels?: string[];
+  removeLabels?: string[];
   done?: boolean;
   /** ISO timestamp. `null` clears it. */
   remindAt?: string | null;
+  /** ISO timestamp. `null` clears it. */
+  dueAt?: string | null;
 }
 
 export function normalizeFlag(flag: string): string {
   return flag.trim().toLowerCase().replace(/\s+/g, '-');
+}
+
+/** Labels keep their case — `RD-12345` must read back as it was typed. */
+export function normalizeLabel(label: string): string {
+  return label.trim().replace(/\s+/g, '-');
+}
+
+/** Issue keys as they appear in branch names: `feature/RD-12345-thing` → `RD-12345`. */
+export function detectIssueKeys(text: string | undefined | null): string[] {
+  if (!text) return [];
+  return [...new Set(text.match(/\b[A-Z][A-Z0-9]{1,9}-\d+\b/g) ?? [])];
 }
 
 /** Parse one annotation file's JSON. Untrusted input — every field is checked. */
@@ -52,8 +67,12 @@ export function parseAnnotation(id: string, raw: string): Annotation | null {
     flags: Array.isArray(d.flags)
       ? [...new Set(d.flags.filter((f): f is string => typeof f === 'string').map(normalizeFlag).filter(Boolean))]
       : [],
+    labels: Array.isArray(d.labels)
+      ? [...new Set(d.labels.filter((l): l is string => typeof l === 'string').map(normalizeLabel).filter(Boolean))]
+      : [],
     done: d.done === true,
     remindAt: str(d.remindAt),
+    dueAt: str(d.dueAt),
     updatedAt: str(d.updatedAt),
   };
   return a;
@@ -94,7 +113,8 @@ export function readAllAnnotations(dir = annotationsDir()): Map<string, Annotati
 
 /** True when the annotation carries nothing worth keeping on disk. */
 function isEmpty(a: Annotation): boolean {
-  return !a.name && !a.note && !a.done && !a.remindAt && a.flags.length === 0;
+  return !a.name && !a.note && !a.done && !a.remindAt && !a.dueAt &&
+    a.flags.length === 0 && a.labels.length === 0;
 }
 
 /**
@@ -107,18 +127,23 @@ function isEmpty(a: Annotation): boolean {
  */
 export function writeAnnotation(id: string, patch: AnnotationPatch, dir = annotationsDir()): Annotation {
   if (!isValidSessionId(id)) throw new Error(`invalid session id: ${id}`);
-  const current = readAnnotation(id, dir) ?? { sessionId: id, flags: [], done: false };
+  const current = readAnnotation(id, dir) ?? { sessionId: id, flags: [], labels: [], done: false };
   const flags = new Set(current.flags);
   for (const f of patch.addFlags ?? []) { const n = normalizeFlag(f); if (n) flags.add(n); }
   for (const f of patch.removeFlags ?? []) flags.delete(normalizeFlag(f));
+  const labels = new Set(current.labels);
+  for (const l of patch.addLabels ?? []) { const n = normalizeLabel(l); if (n) labels.add(n); }
+  for (const l of patch.removeLabels ?? []) labels.delete(normalizeLabel(l));
 
   const next: Annotation = {
     sessionId: id,
     name: patch.name === null ? undefined : (patch.name ?? current.name),
     note: patch.note === null ? undefined : (patch.note ?? current.note),
     flags: [...flags].sort(),
+    labels: [...labels].sort(),
     done: patch.done ?? current.done,
     remindAt: patch.remindAt === null ? undefined : (patch.remindAt ?? current.remindAt),
+    dueAt: patch.dueAt === null ? undefined : (patch.dueAt ?? current.dueAt),
     updatedAt: new Date().toISOString(),
   };
 
@@ -138,6 +163,13 @@ export function writeAnnotation(id: string, patch: AnnotationPatch, dir = annota
 export function isReminderDue(a: Annotation | undefined, now = new Date()): boolean {
   if (!a?.remindAt || a.done) return false;
   const t = Date.parse(a.remindAt);
+  return Number.isFinite(t) && t <= now.getTime();
+}
+
+/** A due date is overdue once it has passed and the work isn't done. */
+export function isOverdue(a: Annotation | undefined, now = new Date()): boolean {
+  if (!a?.dueAt || a.done) return false;
+  const t = Date.parse(a.dueAt);
   return Number.isFinite(t) && t <= now.getTime();
 }
 

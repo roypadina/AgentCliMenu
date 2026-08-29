@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the Homebrew-cask release artifact: AgentCliMenu.app with the agent-cli-menu + acm CLI
+# Build the Homebrew-cask release artifact: Agentctl.app with the agentctl + agentctl CLI
 # bundled inside (Contents/Resources/cli), then zip it. The cask installs the app and
 # symlinks the bundled bin shims onto PATH; they run on Node (depends_on node).
 set -eu
@@ -10,14 +10,14 @@ echo "› npm run build"
 npm run build >/dev/null
 
 echo "› swift build -c release"
-( cd gui/AgentCliMenuBar && swift build -c release >/dev/null )
-BIN="gui/AgentCliMenuBar/.build/release/AgentCliMenuBar"
+( cd gui/AgentctlBar && swift build -c release >/dev/null )
+BIN="gui/AgentctlBar/.build/release/AgentctlBar"
 
-APP="gui/Agent CLI Menu.app"
+APP="gui/Agentctl.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/AgentCliMenuBar"
-cp gui/AgentCliMenuBar/Info.plist "$APP/Contents/Info.plist"
+cp "$BIN" "$APP/Contents/MacOS/AgentctlBar"
+cp gui/AgentctlBar/Info.plist "$APP/Contents/Info.plist"
 # Single source of truth for the app version: package.json, stamped in at build time so the
 # bundle can never report a stale literal (it sat at 0.2.1 through two releases).
 VERSION=$(node -p "require('./package.json').version")
@@ -44,9 +44,9 @@ chmod +x "$CLI/bin/"*
 codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
 
 # ── zip ──
-ZIP="gui/AgentCliMenu.zip"
+ZIP="gui/agentctl.zip"
 rm -f "$ZIP"
-( cd gui && ditto -c -k --sequesterRsrc --keepParent "Agent CLI Menu.app" "AgentCliMenu.zip" )
+( cd gui && ditto -c -k --sequesterRsrc --keepParent "Agentctl.app" "agentctl.zip" )
 
 SHA=$(shasum -a 256 "$ZIP" | cut -d' ' -f1)
 SIZE=$(du -h "$ZIP" | cut -f1)

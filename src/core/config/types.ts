@@ -1,4 +1,4 @@
-// AgentCliMenu config model. Pure data — no ink, no fs here (see loadConfig.ts).
+// Agentctl config model. Pure data — no ink, no fs here (see loadConfig.ts).
 
 export interface GroupConfig {
   name: string;
@@ -46,7 +46,7 @@ export interface GuiConfig {
   hotkey?: string;
 }
 
-export interface AgentCliMenuConfig {
+export interface AgentctlConfig {
   groups: GroupConfig[];
   tools: ToolConfig[];
   ides: IdeConfig[];
@@ -71,7 +71,7 @@ export interface ConfigWarning {
 }
 
 export interface LoadConfigResult {
-  config: AgentCliMenuConfig;
+  config: AgentctlConfig;
   warnings: ConfigWarning[];
   source: 'file' | 'default';
   path: string;
@@ -79,7 +79,7 @@ export interface LoadConfigResult {
   sizeBytes: number;
 }
 
-/** Thrown only on the explicit config command paths (agent-cli-menu config / --setup / --edit). */
+/** Thrown only on the explicit config command paths (agentctl config / --setup / --edit). */
 export class ConfigError extends Error {
   constructor(public code: number, message: string) {
     super(message);

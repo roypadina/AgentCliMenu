@@ -3,20 +3,20 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { ccsmHome, projectsDir, sessionsDir, claudeHomes, projectsDirs, sessionsDirs } from '../../src/core/paths.js';
+import { claudeHome, projectsDir, sessionsDir, claudeHomes, projectsDirs, sessionsDirs } from '../../src/core/paths.js';
 
 describe('paths', () => {
-  const original = process.env.CCSM_HOME;
-  beforeEach(() => { delete process.env.CCSM_HOME; });
-  afterEach(() => { if (original === undefined) delete process.env.CCSM_HOME; else process.env.CCSM_HOME = original; });
+  const original = process.env.AGENTCTL_HOME;
+  beforeEach(() => { delete process.env.AGENTCTL_HOME; });
+  afterEach(() => { if (original === undefined) delete process.env.AGENTCTL_HOME; else process.env.AGENTCTL_HOME = original; });
 
-  it('defaults ccsmHome to ~/.claude', () => {
-    expect(ccsmHome()).toBe(join(homedir(), '.claude'));
+  it('defaults claudeHome to ~/.claude', () => {
+    expect(claudeHome()).toBe(join(homedir(), '.claude'));
   });
 
-  it('honors CCSM_HOME override', () => {
-    process.env.CCSM_HOME = '/tmp/fake-home';
-    expect(ccsmHome()).toBe('/tmp/fake-home');
+  it('honors AGENTCTL_HOME override', () => {
+    process.env.AGENTCTL_HOME = '/tmp/fake-home';
+    expect(claudeHome()).toBe('/tmp/fake-home');
     expect(projectsDir()).toBe('/tmp/fake-home/projects');
     expect(sessionsDir()).toBe('/tmp/fake-home/sessions');
   });
@@ -28,11 +28,11 @@ describe('multi-profile discovery', () => {
   let origCcsm: string | undefined;
 
   beforeEach(() => {
-    home = mkdtempSync(join(tmpdir(), 'acm-homes-'));
+    home = mkdtempSync(join(tmpdir(), 'agentctl-homes-'));
     origHome = process.env.HOME;
-    origCcsm = process.env.CCSM_HOME;
+    origCcsm = process.env.AGENTCTL_HOME;
     process.env.HOME = home;
-    delete process.env.CCSM_HOME;
+    delete process.env.AGENTCTL_HOME;
     // primary + a side profile that shares `projects/` by symlink but has its own `sessions/`
     mkdirSync(join(home, '.claude', 'projects'), { recursive: true });
     mkdirSync(join(home, '.claude', 'sessions'), { recursive: true });
@@ -44,7 +44,7 @@ describe('multi-profile discovery', () => {
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });
     if (origHome === undefined) delete process.env.HOME; else process.env.HOME = origHome;
-    if (origCcsm === undefined) delete process.env.CCSM_HOME; else process.env.CCSM_HOME = origCcsm;
+    if (origCcsm === undefined) delete process.env.AGENTCTL_HOME; else process.env.AGENTCTL_HOME = origCcsm;
   });
 
   it('finds side profiles and keeps the primary first', () => {
@@ -59,8 +59,8 @@ describe('multi-profile discovery', () => {
     ]);
   });
 
-  it('CCSM_HOME pins the scan to one profile', () => {
-    process.env.CCSM_HOME = join(home, '.claude');
+  it('AGENTCTL_HOME pins the scan to one profile', () => {
+    process.env.AGENTCTL_HOME = join(home, '.claude');
     expect(claudeHomes()).toEqual([join(home, '.claude')]);
     expect(sessionsDirs()).toEqual([join(home, '.claude', 'sessions')]);
   });

@@ -31,5 +31,5 @@ jobs:
         run: npm run build
 
       - name: Build the Mac GUI (Swift package)
-        working-directory: gui/AgentCliMenuBar
+        working-directory: gui/AgentctlBar
         run: swift build

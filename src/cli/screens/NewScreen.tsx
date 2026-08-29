@@ -14,11 +14,11 @@ import { fuzzyMatch } from '../../core/fuzzy.js';
 import { countDirty } from '../../core/git.js';
 import { scrollbar } from '../viewport.js';
 import { useKeyChunk, upCount, downCount } from '../useKeyChunk.js';
-import type { AgentCliMenuConfig, ConfigError, ConfigWarning } from '../../core/config/types.js';
+import type { AgentctlConfig, ConfigError, ConfigWarning } from '../../core/config/types.js';
 import type { ProjectDir } from '../../core/groupScan.js';
 
 interface NewScreenProps {
-  config?: AgentCliMenuConfig;
+  config?: AgentctlConfig;
   warnings: ConfigWarning[];
   projects: ProjectDir[][];
   configError?: ConfigError;
@@ -208,7 +208,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
       <Box flexDirection="column">
         <Text bold color="red">config error</Text>
         <Box marginTop={1}><Text>{configError.message}</Text></Box>
-        <Box marginTop={1}><Text dimColor>Fix it (agent-cli-menu config --edit), then reopen.  esc back</Text></Box>
+        <Box marginTop={1}><Text dimColor>Fix it (agentctl config --edit), then reopen.  esc back</Text></Box>
       </Box>
     );
   }
@@ -239,7 +239,7 @@ export function NewScreen({ config, warnings, projects, configError, onSwitchTab
           {rows.length === 0 ? (
             <Text dimColor>
               {groups.length === 0
-                ? '(no groups configured — run: agent-cli-menu config --setup, then add [[group]] entries)'
+                ? '(no groups configured — run: agentctl config --setup, then add [[group]] entries)'
                 : query ? `(no matches for "${query}")` : '(no matching project dirs)'}
             </Text>
           ) : (

@@ -10,14 +10,14 @@ let origHome: string | undefined;
 beforeEach(() => {
   home = mkdtempSync(join(tmpdir(), 'ccsm-live-'));
   mkdirSync(join(home, 'sessions'), { recursive: true });
-  origHome = process.env.CCSM_HOME;
-  process.env.CCSM_HOME = home;
+  origHome = process.env.AGENTCTL_HOME;
+  process.env.AGENTCTL_HOME = home;
 });
 
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
-  if (origHome === undefined) delete process.env.CCSM_HOME;
-  else process.env.CCSM_HOME = origHome;
+  if (origHome === undefined) delete process.env.AGENTCTL_HOME;
+  else process.env.AGENTCTL_HOME = origHome;
 });
 
 describe('readLiveSessions', () => {
@@ -51,11 +51,11 @@ describe('isPidAlive', () => {
 
 describe('side profiles', () => {
   it('reads sessions from every ~/.claude* profile', () => {
-    const fakeHome = mkdtempSync(join(tmpdir(), 'acm-profiles-'));
+    const fakeHome = mkdtempSync(join(tmpdir(), 'agentctl-profiles-'));
     const origHome = process.env.HOME;
-    const origCcsm = process.env.CCSM_HOME;
+    const origCcsm = process.env.AGENTCTL_HOME;
     process.env.HOME = fakeHome;
-    delete process.env.CCSM_HOME;
+    delete process.env.AGENTCTL_HOME;
     try {
       for (const [profile, pid] of [['.claude', 1111], ['.claude3', 2222]] as const) {
         mkdirSync(join(fakeHome, profile, 'sessions'), { recursive: true });
@@ -67,7 +67,7 @@ describe('side profiles', () => {
     } finally {
       rmSync(fakeHome, { recursive: true, force: true });
       if (origHome === undefined) delete process.env.HOME; else process.env.HOME = origHome;
-      if (origCcsm === undefined) delete process.env.CCSM_HOME; else process.env.CCSM_HOME = origCcsm;
+      if (origCcsm === undefined) delete process.env.AGENTCTL_HOME; else process.env.AGENTCTL_HOME = origCcsm;
     }
   });
 });

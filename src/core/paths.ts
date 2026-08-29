@@ -2,26 +2,28 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readdirSync, realpathSync, statSync } from 'node:fs';
 
-export function ccsmHome(): string {
-  return process.env.CCSM_HOME ?? join(homedir(), '.claude');
+export function claudeHome(): string {
+  // CCSM_HOME is the pre-0.5.0 name, still honored.
+  return process.env.AGENTCTL_HOME ?? process.env.CCSM_HOME ?? join(homedir(), '.claude');
 }
 
 export function projectsDir(): string {
-  return join(ccsmHome(), 'projects');
+  return join(claudeHome(), 'projects');
 }
 
 export function sessionsDir(): string {
-  return join(ccsmHome(), 'sessions');
+  return join(claudeHome(), 'sessions');
 }
 
 /**
  * Every Claude home on this machine: `~/.claude` plus side profiles created with
  * `CLAUDE_CONFIG_DIR` (`~/.claude2`, `~/.claude3`, `~/.claude-work`, …). Each profile
  * keeps its own `sessions/` dir, so scanning only the primary reports every session
- * running under a side profile as inactive. `CCSM_HOME` pins the scan to one home.
+ * running under a side profile as inactive. `AGENTCTL_HOME` pins the scan to one home.
  */
 export function claudeHomes(): string[] {
-  if (process.env.CCSM_HOME) return [process.env.CCSM_HOME];
+  const pinned = process.env.AGENTCTL_HOME ?? process.env.CCSM_HOME;
+  if (pinned) return [pinned];
   const home = homedir();
   const homes = [join(home, '.claude')];
   try {

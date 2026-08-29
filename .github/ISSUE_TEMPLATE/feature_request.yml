@@ -1,12 +1,12 @@
 name: Feature request
-description: Suggest an idea for AgentCliMenu
+description: Suggest an idea for Agentctl
 labels: ["enhancement"]
 body:
   - type: textarea
     id: problem
     attributes:
       label: Problem / motivation
-      description: What are you trying to do that AgentCliMenu doesn't support today?
+      description: What are you trying to do that Agentctl doesn't support today?
     validations:
       required: true
   - type: textarea

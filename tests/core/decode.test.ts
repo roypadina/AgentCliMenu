@@ -7,7 +7,7 @@ import { decodeCwd } from '../../src/core/decode.js';
 describe('decodeCwd', () => {
   let root: string;
   beforeAll(() => {
-    root = mkdtempSync(join(tmpdir(), 'ccsm-decode-'));
+    root = mkdtempSync(join(tmpdir(), 'agentctl-decode-'));
     mkdirSync(join(root, 'Users/roy/Code/Work/My-App-Repo/sub'), { recursive: true });
     mkdirSync(join(root, 'Users/roy/Code/plain'), { recursive: true });
   });

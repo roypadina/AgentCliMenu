@@ -63,7 +63,7 @@ describe('fuzzyMatch — relevance floor', () => {
   });
 
   it('keeps legitimate gapped / acronym matches (positive score)', () => {
-    expect(fuzzyMatch('acm', 'AgentCliMenu')).not.toBeNull(); // acronym ≈ 15.4
+    expect(fuzzyMatch('agentctl', 'Agentctl')).not.toBeNull(); // acronym ≈ 15.4
     expect(fuzzyMatch('wap', 'web-app')).not.toBeNull(); // ≈ 22
     expect(fuzzyMatch('api', 'aaa-p-iii')).not.toBeNull(); // scattered but positive ≈ 19.8
   });

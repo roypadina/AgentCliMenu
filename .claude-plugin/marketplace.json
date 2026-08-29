@@ -1,15 +1,15 @@
 {
-  "name": "agent-cli-menu",
-  "description": "Plugins that pair with the Agent CLI Menu session picker.",
+  "name": "agentctl",
+  "description": "Plugins that pair with the Agentctl session picker.",
   "owner": {
     "name": "Roy Padina",
     "url": "https://github.com/roypadina"
   },
   "plugins": [
     {
-      "name": "acm-sessions",
-      "source": "./plugins/acm-sessions",
-      "description": "Name, note, flag and set reminders on Claude Code sessions from inside the session — visible in the Agent CLI Menu picker."
+      "name": "agentctl-sessions",
+      "source": "./plugins/agentctl-sessions",
+      "description": "Name, note, flag and set reminders on Claude Code sessions from inside the session — visible in the Agentctl picker."
     }
   ]
 }

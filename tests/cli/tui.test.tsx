@@ -114,7 +114,7 @@ describe('short terminals', () => {
   /** ink's fake stdout reports no size, so the code falls back to 30 rows / 80 cols. */
   it('keeps the whole render inside the terminal even with a note and a recap on screen', () => {
     const annotated = many.map((r, i) => i === 0
-      ? { ...r, annotation: { sessionId: r.id, flags: ['todo'], done: false, note: 'a\nb\nc' } }
+      ? { ...r, annotation: { sessionId: r.id, flags: ['todo'], labels: [], done: false, note: 'a\nb\nc' } }
       : r);
     const { lastFrame } = render(<App initial={annotated} />);
     expect(lastFrame()!.split('\n').length).toBeLessThanOrEqual(30);

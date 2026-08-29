@@ -2,7 +2,7 @@ import type { Command } from 'commander';
 import { isReminderDue, readAllAnnotations, readAnnotation } from '../core/annotations.js';
 import type { Annotation } from '../core/types.js';
 
-// Entry points for the acm-sessions Claude Code plugin. A hook must NEVER break the session it
+// Entry points for the agentctl-sessions Claude Code plugin. A hook must NEVER break the session it
 // runs in, so every path here exits 0 and prints nothing rather than throwing.
 
 export interface HookDeps {
@@ -35,16 +35,16 @@ export function sessionStartContext(raw: string, deps: HookDeps = {}): string {
   const a = readOne(id);
   const lines: string[] = [];
 
-  if (a?.name) lines.push(`Agent CLI Menu calls this session "${a.name}".`);
+  if (a?.name) lines.push(`Agentctl calls this session "${a.name}".`);
   else {
     lines.push(
-      'This session has no Agent CLI Menu name. Once the user\'s first task is clear, name it with' +
-      ' `acm name "<3-5 words>"` — run it once, quietly, and do not ask permission or announce it.',
+      'This session has no Agentctl name. Once the user\'s first task is clear, name it with' +
+      ' `agentctl name "<3-5 words>"` — run it once, quietly, and do not ask permission or announce it.',
     );
   }
   if (a?.flags.length) lines.push(`Flags on it: ${a.flags.map(f => `#${f}`).join(' ')}.`);
   if (a?.note) lines.push(`Note saved on it: ${a.note.replace(/\s*\n\s*/g, ' / ')}`);
-  if (a?.done) lines.push('It is marked done — if the user reopens the work, run `acm done --undo`.');
+  if (a?.done) lines.push('It is marked done — if the user reopens the work, run `agentctl done --undo`.');
   if (isReminderDue(a ?? undefined, now)) lines.push('Its reminder is due: tell the user once, up front.');
 
   const dueElsewhere = [...readAll().values()].filter(x => x.sessionId !== id && isReminderDue(x, now));
@@ -54,8 +54,8 @@ export function sessionStartContext(raw: string, deps: HookDeps = {}): string {
   }
 
   lines.push(
-    'Session tools, all targeting THIS session with no id needed: `acm name "…"`, `acm note "…"`,' +
-    ' `acm flag <tag>`, `acm remind 2h`, `acm done`. Use them whenever the user asks to name, flag,' +
+    'Session tools, all targeting THIS session with no id needed: `agentctl name "…"`, `agentctl note "…"`,' +
+    ' `agentctl flag <tag>`, `agentctl remind 2h`, `agentctl done`. Use them whenever the user asks to name, flag,' +
     ' annotate, remind about, or close out this session.',
   );
   return lines.join('\n') + '\n';
@@ -75,7 +75,7 @@ function readStdin(): Promise<string> {
 export function registerHookCommands(program: Command) {
   const hook = program
     .command('hook')
-    .description('entry points for the acm-sessions Claude Code plugin (hook JSON on stdin)');
+    .description('entry points for the agentctl-sessions Claude Code plugin (hook JSON on stdin)');
 
   hook
     .command('session-start')

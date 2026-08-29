@@ -1,4 +1,4 @@
-# Agent CLI Menu config — copy to ~/.config/agentclimenu/config.toml and edit (`agent-cli-menu config --setup`).
+# Agentctl config — copy to ~/.config/agentctl/config.toml and edit (`agentctl config --setup`).
 
 # Optional. Which tool's launcher is primary (informational).
 default_tool = "cld"

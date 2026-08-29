@@ -1,10 +1,10 @@
-# Agent CLI Menu — Launch-Day Runbook (paste-and-go)
+# Agentctl — Launch-Day Runbook (paste-and-go)
 
 Anchor day: **Thu 2026-06-12** (repo is >1 week old → awesome-claude-code eligible; concentrate the star burst for Changelog Nightly trending). Post **one channel at a time**, stay and reply, and **NEVER ask for upvotes**.
 
 Reusable bits:
-- Repo: `https://github.com/roypadina/AgentCliMenu`
-- Install: `brew install --cask roypadina/tap/agentclimenu`
+- Repo: `https://github.com/roypadina/Agentctl`
+- Install: `brew install --cask roypadina/tap/agentctl`
 - Demo GIF (TUI): `docs/demo.gif` · Menu-bar GIF: `docs/gui-demo.gif` (upload these where an image is allowed)
 
 > ⚠️ Reddit was blocked from the dev machine, so the submit links below are the standard per-sub URLs. **Flair must be picked in the submit page** (can't be pre-linked) — I note which flair each time. If a sub's flair name differs, pick the closest "Showcase / I built this / Project" one.
@@ -13,7 +13,7 @@ Reusable bits:
 
 ## Pre-flight (morning of, ~10 min)
 - [ ] Logged into HN (`roypadina`), Reddit, X — all on stable, non-project-named accounts.
-- [ ] Social preview uploaded (done) — confirm `https://github.com/roypadina/AgentCliMenu` unfurls a card.
+- [ ] Social preview uploaded (done) — confirm `https://github.com/roypadina/Agentctl` unfurls a card.
 - [ ] `docs/demo.gif` + `docs/gui-demo.gif` open in a Finder window, ready to drag-drop.
 - [ ] README looks right on github.com (hero GIF autoplays).
 - [ ] You have **no other open issue** in `hesreallyhim/awesome-claude-code` (needed for the form).
@@ -26,9 +26,9 @@ Reusable bits:
 **Submit:** https://news.ycombinator.com/submit
 - **Title** (paste exactly; no `!`, no version/domain):
 ```
-Show HN: Agent CLI Menu – Start and resume Claude Code / Codex sessions from one menu (macOS)
+Show HN: Agentctl – Start and resume Claude Code / Codex sessions from one menu (macOS)
 ```
-- **URL field:** `https://github.com/roypadina/AgentCliMenu`
+- **URL field:** `https://github.com/roypadina/Agentctl`
 - **Text field:** leave blank.
 - **Immediately post this as the first comment:**
 ```
@@ -41,13 +41,13 @@ and frecency-sorted with a fuzzy filter, one keypress to launch in your IDE / tm
 pull — and (b) fuzzy-search *past* Claude Code sessions and resume them, with a transcript preview
 so you can see which conversation it is before jumping back in. Works for Claude Code and Codex.
 
-It ships as both a terminal TUI (agent-cli-menu, alias acm) and a native SwiftUI menu-bar app.
+It ships as both a terminal TUI (agentctl, alias agentctl) and a native SwiftUI menu-bar app.
 
 MIT, runs fully local — reads your local session files, nothing leaves your machine. No signup.
 
-  brew install --cask roypadina/tap/agentclimenu
+  brew install --cask roypadina/tap/agentctl
 
-Repo + demo: https://github.com/roypadina/AgentCliMenu
+Repo + demo: https://github.com/roypadina/Agentctl
 
 Most want feedback on: (1) is the transcript-preview-on-resume enough to identify a session?
 (2) Linux/Windows interest — the TUI is Node/ink so it's portable in principle. Happy to answer anything.
@@ -67,19 +67,19 @@ Full disclosure: I'm the solo dev, this is free and MIT.
 The problem: 15+ Claude Code sessions across repos (+ some Codex), and every time I came back I'd
 waste minutes finding the one I actually wanted to resume.
 
-So I built Agent CLI Menu. Two things:
+So I built Agentctl. Two things:
 
 1. Start a NEW session — project dirs show up grouped + frecency-sorted (most-used float up),
    fuzzy-filter, one keypress launches (IDE / tmux / git pull first).
 2. RESUME a past Claude Code session — fuzzy-search across past sessions with a transcript preview,
    so you see which conversation it is before resuming. This is the part I use constantly.
 
-Terminal TUI (agent-cli-menu / acm) *and* a native menu-bar app. Handles Claude Code and Codex.
+Terminal TUI (agentctl / agentctl) *and* a native menu-bar app. Handles Claude Code and Codex.
 
 [drag in docs/demo.gif here]
 
-Runs fully local. Install:  brew install --cask roypadina/tap/agentclimenu
-Repo: https://github.com/roypadina/AgentCliMenu
+Runs fully local. Install:  brew install --cask roypadina/tap/agentctl
+Repo: https://github.com/roypadina/Agentctl
 
 How do you all juggle multiple agent sessions today — tmux, separate terminals, `claude --resume`
 and hope? Want to know if transcript-preview resume is the right solve.
@@ -89,7 +89,7 @@ and hope? Want to know if transcript-preview resume is the right solve.
 Post as a thread (paste):
 ```
 1/ I kept losing track of which Claude Code session was which — 40+ across repos.
-So I built Agent CLI Menu: one menu to start a new Claude Code / Codex session in any repo, or
+So I built Agentctl: one menu to start a new Claude Code / Codex session in any repo, or
 fuzzy-resume a past one. Free, MIT, local. 🧵 [attach docs/demo.gif]
 
 2/ The killer feature: fuzzy-search your PAST Claude Code sessions and resume them — with a
@@ -99,10 +99,10 @@ Most tools spin up new parallel sessions. This finds the one you already had.
 3/ New sessions too: project dirs grouped + frecency-sorted, fuzzy-filter, one keypress to launch
 in your IDE / tmux / with a git pull. Claude Code AND Codex.
 
-4/ Two ways: terminal TUI (agent-cli-menu / acm) + native SwiftUI menu-bar app. [attach docs/gui-demo.gif]
+4/ Two ways: terminal TUI (agentctl / agentctl) + native SwiftUI menu-bar app. [attach docs/gui-demo.gif]
 
-5/ macOS, one line:  brew install --cask roypadina/tap/agentclimenu
-Repo + demo: github.com/roypadina/AgentCliMenu
+5/ macOS, one line:  brew install --cask roypadina/tap/agentctl
+Repo + demo: github.com/roypadina/Agentctl
 Building in public, solo, no budget — feedback welcome 🙏 #ClaudeCode #buildinpublic
 ```
 
@@ -117,7 +117,7 @@ Building in public, solo, no budget — feedback welcome 🙏 #ClaudeCode #build
 **Submit:** https://www.reddit.com/r/commandline/submit  → best-fit TUI flair · link straight to GitHub (no shorteners)
 - **Title:**
 ```
-Agent CLI Menu — a terminal session manager/launcher for coding-agent sessions (frecency launcher + fuzzy resume)
+Agentctl — a terminal session manager/launcher for coding-agent sessions (frecency launcher + fuzzy resume)
 ```
 - **Body** (frame as a *session manager*, not an "LLM tool" — Rule 6; list alternatives — Rule 8):
 ```
@@ -136,8 +136,8 @@ search), and various parallel-agent runners. This one's angle is fuzzy *transcri
 the exact past session, plus the frecency launcher.
 
 Note: parts of the codebase were written with AI assistance.
-Repo (direct): https://github.com/roypadina/AgentCliMenu
-Install: brew install --cask roypadina/tap/agentclimenu
+Repo (direct): https://github.com/roypadina/Agentctl
+Install: brew install --cask roypadina/tap/agentctl
 ```
 
 ---
@@ -146,28 +146,28 @@ Install: brew install --cask roypadina/tap/agentclimenu
 **r/macapps submit:** https://www.reddit.com/r/macapps/submit → flair: **Self Promotion** (or the sub's promo flair) · official links only
 - **Title:**
 ```
-[Open Source] Agent CLI Menu — menu-bar app to launch & resume your Claude Code / Codex sessions (macOS 12+)
+[Open Source] Agentctl — menu-bar app to launch & resume your Claude Code / Codex sessions (macOS 12+)
 ```
 - **Body** (lead GUI; attach `docs/gui-demo.gif`):
 ```
 Disclosure: I'm the developer. Free, open source (MIT), not selling anything.
 
-Agent CLI Menu lives in your menu bar and lets you start a new Claude Code / Codex session in any
+Agentctl lives in your menu bar and lets you start a new Claude Code / Codex session in any
 project, or fuzzy-search and resume a past one with a transcript preview — without hunting through
-terminals. Shares one config with a terminal TUI (agent-cli-menu / acm) if you prefer the keyboard.
+terminals. Shares one config with a terminal TUI (agentctl / agentctl) if you prefer the keyboard.
 
 [drag in docs/gui-demo.gif]
 
-Install:  brew install --cask roypadina/tap/agentclimenu
+Install:  brew install --cask roypadina/tap/agentctl
 Gatekeeper: ad-hoc signed, not notarized yet — first launch is right-click → Open, or
-  xattr -dr com.apple.quarantine "/Applications/Agent CLI Menu.app"
+  xattr -dr com.apple.quarantine "/Applications/Agentctl.app"
 macOS 12+. Brand new, so feedback / bug reports welcome.
 
 Closest things today: `claude --resume` (id-only, no search) and parallel-agent runners. This one
 focuses on *finding and resuming the right existing session* by transcript text.
-Repo: https://github.com/roypadina/AgentCliMenu
+Repo: https://github.com/roypadina/Agentctl
 ```
-**Terminal Trove submit:** https://terminaltrove.com/post/ — submit the TUI (`acm`); macOS, TS/JS, MIT; tagline + 250–300-char overview + brew install + **a PNG/GIF preview is mandatory** (use `docs/demo.gif`).
+**Terminal Trove submit:** https://terminaltrove.com/post/ — submit the TUI (`agentctl`); macOS, TS/JS, MIT; tagline + 250–300-char overview + brew install + **a PNG/GIF preview is mandatory** (use `docs/demo.gif`).
 
 ---
 
@@ -175,25 +175,25 @@ Repo: https://github.com/roypadina/AgentCliMenu
 **r/tmux submit:** https://www.reddit.com/r/tmux/submit → flair: **Showcase** (lead with the tmux hook)
 - **Title:**
 ```
-agent-cli-menu — a fuzzy project launcher that opens Claude Code / Codex sessions straight into tmux
+agentctl — a fuzzy project launcher that opens Claude Code / Codex sessions straight into tmux
 ```
 - **Body:**
 ```
 I'm the author (MIT). I kept context-switching between repos and wanted one key from a project
 picker into a tmux session running an agent.
 
-Agent CLI Menu: frecency-sorted, fuzzy project launcher — pick a repo, it opens your tool
+Agentctl: frecency-sorted, fuzzy project launcher — pick a repo, it opens your tool
 (Claude Code / Codex) right there, and it can open into tmux (or your IDE, or after a git pull).
 The other half fuzzy-searches and resumes your past sessions by transcript text.
 
 [attach a GIF of launch → tmux]
 
-Install: brew install --cask roypadina/tap/agentclimenu
-Repo: https://github.com/roypadina/AgentCliMenu
+Install: brew install --cask roypadina/tap/agentctl
+Repo: https://github.com/roypadina/Agentctl
 ```
 **dev.to:** https://dev.to/new → tags `#showdev #cli #ai #macos` (max 4)
-- **Title:** `Show DEV: Agent CLI Menu — fuzzy-resume your Claude Code & Codex sessions by transcript text`
-- Short post: the problem (losing which session is which) → what it does (frecency launcher + transcript-search resume) → `docs/demo.gif` → `brew install --cask roypadina/tap/agentclimenu` → repo. Show WHAT it does (a HOW-to tutorial gets the #showdev tag stripped). Set canonical_url if you cross-post.
+- **Title:** `Show DEV: Agentctl — fuzzy-resume your Claude Code & Codex sessions by transcript text`
+- Short post: the problem (losing which session is which) → what it does (frecency launcher + transcript-search resume) → `docs/demo.gif` → `brew install --cask roypadina/tap/agentctl` → repo. Show WHAT it does (a HOW-to tutorial gets the #showdev tag stripped). Set canonical_url if you cross-post.
 
 ---
 
@@ -214,12 +214,12 @@ A TUI + menu-bar app that starts and resumes your Codex CLI sessions (also Claud
 ```
 I'm the author (MIT, free). I run both Codex CLI and Claude Code and kept losing track of sessions.
 
-Agent CLI Menu starts a new Codex/Claude session in any project (frecency-sorted fuzzy launcher),
+Agentctl starts a new Codex/Claude session in any project (frecency-sorted fuzzy launcher),
 or fuzzy-searches your past sessions by transcript text and resumes the right one with a preview.
-Terminal TUI (agent-cli-menu / acm) + a native macOS menu-bar app, one shared config.
+Terminal TUI (agentctl / agentctl) + a native macOS menu-bar app, one shared config.
 
-Install: brew install --cask roypadina/tap/agentclimenu
-Repo: https://github.com/roypadina/AgentCliMenu
+Install: brew install --cask roypadina/tap/agentctl
+Repo: https://github.com/roypadina/Agentctl
 ```
 
 ---

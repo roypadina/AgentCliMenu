@@ -1,8 +1,9 @@
 import type { Command } from 'commander';
 import {
   parseWhen, readAllAnnotations, readAnnotation, writeAnnotation,
-  isReminderDue, type AnnotationPatch,
+  isReminderDue, isOverdue, detectIssueKeys, type AnnotationPatch,
 } from '../core/annotations.js';
+import { readGitBranch } from '../core/git.js';
 import { currentSessionId } from '../core/liveState.js';
 import { listSessions } from '../core/sessionRepo.js';
 import type { Annotation } from '../core/types.js';
@@ -28,9 +29,11 @@ async function targetId(opt?: string): Promise<string> {
 function describe(a: Annotation): string {
   const bits: string[] = [];
   if (a.name) bits.push(`name="${a.name}"`);
+  if (a.labels.length) bits.push(`labels=${a.labels.join(',')}`);
   if (a.flags.length) bits.push(`flags=${a.flags.join(',')}`);
   if (a.done) bits.push('done');
   if (a.remindAt) bits.push(`remind=${a.remindAt}`);
+  if (a.dueAt) bits.push(`due=${a.dueAt}`);
   if (a.note) bits.push(`note="${a.note.replace(/\s+/g, ' ').slice(0, 60)}"`);
   return bits.length ? bits.join('  ') : '(cleared)';
 }
@@ -93,17 +96,48 @@ export function registerAnnotateCommands(program: Command) {
       await apply(opts.session, { remindAt: at.toISOString() }, opts.json);
     });
 
+  session(program.command('label [labels...]'))
+    .description('tag a session with what it relates to — a Jira key, a repo, a topic (searchable)')
+    .option('--remove', 'remove the given labels instead of adding them')
+    .option('--auto', 'add any issue key found in the current git branch (e.g. RD-12345)')
+    .action(async (labels: string[], opts) => {
+      const all = [...labels];
+      if (opts.auto) {
+        const found = detectIssueKeys(readGitBranch(process.cwd()));
+        if (found.length === 0 && labels.length === 0) {
+          console.error(`no issue key in the branch here (${readGitBranch(process.cwd()) ?? 'not a repo'})`);
+          process.exit(1);
+        }
+        all.push(...found);
+      }
+      if (all.length === 0) { console.error('give at least one label, or --auto'); process.exit(2); }
+      await apply(opts.session, opts.remove ? { removeLabels: all } : { addLabels: all }, opts.json);
+    });
+
+  session(program.command('due [when...]'))
+    .description('set when the work is due: 2h, 3d, tomorrow, "friday 17:00", or an ISO date')
+    .option('--clear', 'drop the due date')
+    .action(async (when: string[], opts) => {
+      if (opts.clear) { await apply(opts.session, { dueAt: null }, opts.json); return; }
+      const raw = when.join(' ').trim();
+      const at = raw ? parseWhen(raw) : null;
+      if (!at) { console.error(`can't read a time out of "${raw}" — try 3d, tomorrow 9am, or an ISO date`); process.exit(2); }
+      await apply(opts.session, { dueAt: at.toISOString() }, opts.json);
+    });
+
   program
     .command('annotations')
     .description('list every annotated session')
     .option('--json')
-    .option('--due', 'only sessions whose reminder has come due')
-    .action(async (opts: { json?: boolean; due?: boolean }) => {
+    .option('--due', 'only sessions whose reminder has come due or whose due date has passed')
+    .option('--label <label>', 'only sessions carrying this label')
+    .action(async (opts: { json?: boolean; due?: boolean; label?: string }) => {
       const all = [...readAllAnnotations().values()]
-        .filter(a => !opts.due || isReminderDue(a))
+        .filter(a => !opts.due || isReminderDue(a) || isOverdue(a))
+        .filter(a => !opts.label || a.labels.some(l => l.toLowerCase() === opts.label!.toLowerCase()))
         .sort((x, y) => (y.updatedAt ?? '').localeCompare(x.updatedAt ?? ''));
       if (opts.json) { console.log(JSON.stringify(all, null, 2)); return; }
-      if (all.length === 0) { console.log(opts.due ? 'no reminders due' : 'no annotations yet'); return; }
+      if (all.length === 0) { console.log(opts.due ? 'nothing due' : 'no annotations yet'); return; }
       // Names come from the annotation itself; fall back to the transcript title only when needed.
       const missing = all.filter(a => !a.name);
       const titles = new Map<string, string>();
@@ -112,8 +146,13 @@ export function registerAnnotateCommands(program: Command) {
       }
       for (const a of all) {
         const label = a.name ?? titles.get(a.sessionId) ?? '(unknown session)';
-        const marks = [a.done ? '✓' : '', isReminderDue(a) ? '⏰' : '', ...a.flags.map(f => `#${f}`)]
-          .filter(Boolean).join(' ');
+        const marks = [
+          a.done ? '✓' : '',
+          isReminderDue(a) ? '⏰' : '',
+          isOverdue(a) ? 'OVERDUE' : '',
+          ...a.labels.map(l => `[${l}]`),
+          ...a.flags.map(f => `#${f}`),
+        ].filter(Boolean).join(' ');
         console.log(`${a.sessionId.slice(0, 8)}  ${label}${marks ? '  ' + marks : ''}`);
         if (a.note) for (const line of a.note.split('\n')) console.log(`          ${line}`);
       }

@@ -1,18 +1,18 @@
-# Agent CLI Menu — Mac GUI
+# Agentctl — Mac GUI
 
 A native menu-bar + window app (SwiftUI, `LSUIElement`) that **is** the menu — it shows your
 projects and sessions in a real UI and opens the chosen one in your configured terminal. It is a
-thin view: all data + launching + config comes from `agent-cli-menu gui …`, so the GUI never parses TOML or
-reads `~/.claude` itself. The GUI and the terminal TUI share one config (`~/.config/agentclimenu/config.toml`).
+thin view: all data + launching + config comes from `agentctl gui …`, so the GUI never parses TOML or
+reads `~/.claude` itself. The GUI and the terminal TUI share one config (`~/.config/agentctl/config.toml`).
 
 ## Build / run
 
 ```sh
-./build-app.sh                 # → gui/Agent CLI Menu.app (release, ad-hoc signed)
-open "./Agent CLI Menu.app"          # ✦ appears in the menu bar
+./build-app.sh                 # → gui/Agentctl.app (release, ad-hoc signed)
+open "./Agentctl.app"          # ✦ appears in the menu bar
 ```
 
-`agent-cli-menu` must be on `PATH` (or at `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`). Until brew
+`agentctl` must be on `PATH` (or at `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`). Until brew
 ships it: `cd .. && npm run build && npm link`. For dev you can also set `$ACM_BIN`.
 
 - **Left-click ✦** → popover. **Right-click ✦** → Open / Open in window / Quit.
@@ -25,17 +25,17 @@ ships it: `cd .. && npm run build && npm link`. For dev you can also set `$ACM_B
   cmux, or a custom command).
 - **macwindow** button: detach the popover into a resizable window.
 
-## GUI ↔ CLI contract (`agent-cli-menu gui …`)
+## GUI ↔ CLI contract (`agentctl gui …`)
 
 | Command | Returns / does |
 |---------|----------------|
-| `agent-cli-menu gui projects` | JSON: groups → dirs (branch, age), tools, defaultTool |
-| `agent-cli-menu gui sessions` | JSON: resumable sessions |
-| `agent-cli-menu gui new-dir --base <d> --name <n>` | mkdir, prints `{path}` |
-| `agent-cli-menu gui launch --dir <d> [--tool <t>]` | open the tool in `<d>` in the configured terminal |
-| `agent-cli-menu gui resume --id <id>` | resume a session in the configured terminal |
-| `agent-cli-menu gui terminals` / `set-terminal <v> [--command <t>]` | terminal picker read/write |
-| `agent-cli-menu gui config-get` / `config-save` | full config read / write (shared with the TUI) |
+| `agentctl gui projects` | JSON: groups → dirs (branch, age), tools, defaultTool |
+| `agentctl gui sessions` | JSON: resumable sessions |
+| `agentctl gui new-dir --base <d> --name <n>` | mkdir, prints `{path}` |
+| `agentctl gui launch --dir <d> [--tool <t>]` | open the tool in `<d>` in the configured terminal |
+| `agentctl gui resume --id <id>` | resume a session in the configured terminal |
+| `agentctl gui terminals` / `set-terminal <v> [--command <t>]` | terminal picker read/write |
+| `agentctl gui config-get` / `config-save` | full config read / write (shared with the TUI) |
 
 The terminal opener writes a temp `*.command` (`cd <dir>; exec <cmd>`) and:
 `default` → `open <script>` (system default terminal) · app name → `open -a <App> <script>` ·

@@ -5,7 +5,7 @@ import { validateConfig } from './validate.js';
 import { DEFAULT_CONFIG, DEFAULT_RESERVED_KEYS, DEFAULT_TOOLS, DEFAULT_COLOR } from './defaults.js';
 import {
   ConfigError,
-  type AgentCliMenuConfig,
+  type AgentctlConfig,
   type LoadConfigResult,
   type ToolConfig,
 } from './types.js';
@@ -29,7 +29,7 @@ export interface LoadConfigOptions {
 /**
  * Load + validate the config. Missing file → defaults (no throw). A TOML syntax error throws
  * ConfigError(5) (caller decides whether to surface or fall back) — see B8: only the explicit
- * `agent-cli-menu config` paths let it propagate; interactive screens catch it.
+ * `agentctl config` paths let it propagate; interactive screens catch it.
  * Note: readFileSync is fine here — config is KB-scale. The streaming rule is for MB JSONL.
  */
 export function loadConfig(opts: LoadConfigOptions = {}): LoadConfigResult {
@@ -91,14 +91,14 @@ export function loadConfig(opts: LoadConfigOptions = {}): LoadConfigResult {
 }
 
 /** Resolve a tool by name: config > built-in defaults > synthesized (run the name itself). */
-export function getTool(config: AgentCliMenuConfig, name: string): ToolConfig {
+export function getTool(config: AgentctlConfig, name: string): ToolConfig {
   const found = config.tools.find(t => t.name === name);
   if (found) return found;
   if (DEFAULT_TOOLS[name]) return DEFAULT_TOOLS[name];
   return { name, runs: name, label: ` ${name} `, color: DEFAULT_COLOR };
 }
 
-function structuredCloneConfig(c: AgentCliMenuConfig): AgentCliMenuConfig {
+function structuredCloneConfig(c: AgentctlConfig): AgentctlConfig {
   return {
     groups: c.groups.map(g => ({ ...g })),
     tools: c.tools.map(t => ({ ...t })),

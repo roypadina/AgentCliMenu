@@ -3,26 +3,26 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Agent CLI Menu</string>
+    <string>Agentctl</string>
     <key>CFBundleDisplayName</key>
-    <string>Agent CLI Menu</string>
+    <string>Agentctl</string>
     <key>CFBundleIdentifier</key>
-    <string>com.agentclimenu.menubar</string>
+    <string>com.roypadina.agentctl</string>
     <!-- Both are stamped from package.json by gui/build-app.sh and gui/build-release.sh;
          the literals below are only what an unscripted `swift build` would see. -->
     <key>CFBundleVersion</key>
-    <string>0.4.0</string>
+    <string>0.5.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.4.0</string>
+    <string>0.5.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
-    <string>AgentCliMenuBar</string>
+    <string>AgentctlBar</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>AgentCliMenu opens your terminal to run the cm launcher.</string>
+    <string>Agentctl opens your terminal to run the cm launcher.</string>
 </dict>
 </plist>

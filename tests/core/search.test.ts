@@ -12,8 +12,8 @@ let origHome: string | undefined;
 beforeEach(() => {
   home = mkdtempSync(join(tmpdir(), 'ccsm-search-'));
   cwd = mkdtempSync(join(tmpdir(), 'ccsm-search-cwd-'));
-  origHome = process.env.CCSM_HOME;
-  process.env.CCSM_HOME = home;
+  origHome = process.env.AGENTCTL_HOME;
+  process.env.AGENTCTL_HOME = home;
   const encoded = cwd.replaceAll('/', '-');
   const projDir = join(home, 'projects', encoded);
   mkdirSync(projDir, { recursive: true });
@@ -33,8 +33,8 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
   rmSync(cwd, { recursive: true, force: true });
-  if (origHome === undefined) delete process.env.CCSM_HOME;
-  else process.env.CCSM_HOME = origHome;
+  if (origHome === undefined) delete process.env.AGENTCTL_HOME;
+  else process.env.AGENTCTL_HOME = origHome;
 });
 
 describe('searchSessions', () => {

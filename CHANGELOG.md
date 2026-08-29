@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Agent CLI Menu are documented here. Format loosely follows
+All notable changes to Agentctl are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com); versions follow [SemVer](https://semver.org).
 
 ## [0.4.0] — 2026-08-29
@@ -9,13 +9,13 @@ All notable changes to Agent CLI Menu are documented here. Format loosely follow
 
 - **Names, notes, flags, done and reminders on any session.** Rename a session as often as you like
   (`e`), pin a note to it (`n`), tag it (`f`), set a reminder (`t`), mark it finished (`d`) and hide
-  finished ones (`h`) — or from the shell with `acm name/note/flag/remind/done/annotations`. Run
+  finished ones (`h`) — or from the shell with `agentctl name/note/flag/remind/done/annotations`. Run
   inside a Claude session those commands target *that* session with no id. Rows show `✓ ⚑ ✎ ◆`
   badges (the reminder turns red once due) and the fuzzy filter searches flags and notes.
-  Everything lives in `~/.config/agentclimenu/annotations/<id>.json`, one file per session, written
+  Everything lives in `~/.config/agentctl/annotations/<id>.json`, one file per session, written
   atomically and kept outside `~/.claude` so it can never corrupt a transcript.
-- **`acm-sessions` Claude Code plugin** (`plugins/acm-sessions`) — `/acm-name`, `/acm-note`,
-  `/acm-flag`, `/acm-remind`, `/acm-done`, and a `SessionStart` hook that hands each session its own
+- **`agentctl-sessions` Claude Code plugin** (`plugins/agentctl-sessions`) — `/agentctl-name`, `/agentctl-note`,
+  `/agentctl-flag`, `/agentctl-remind`, `/agentctl-done`, and a `SessionStart` hook that hands each session its own
   name, note and flags back, reports reminders that came due, and asks an unnamed session to name
   itself once its first task is clear.
 - **Multi-profile support.** Several Claude accounts via `CLAUDE_CONFIG_DIR` (`~/.claude`,
@@ -46,11 +46,11 @@ All notable changes to Agent CLI Menu are documented here. Format loosely follow
 
 ### Added
 
-- **Session recap.** Press `r` in Resume (or run `agent-cli-menu recap <id>`) to generate a short
+- **Session recap.** Press `r` in Resume (or run `agentctl recap <id>`) to generate a short
   AI summary of a session — what it was working on, key decisions, current state, open follow-ups —
   so you can decide whether to resume it without reading the whole transcript. Runs `claude -p`
-  with the cheap/fast **haiku** model (override with `CCSM_RECAP_MODEL`) on a token-capped head+tail
-  excerpt, and caches the result to `~/.config/agentclimenu/recaps/<id>.md` so re-opening is instant.
+  with the cheap/fast **haiku** model (override with `AGENTCTL_RECAP_MODEL`) on a token-capped head+tail
+  excerpt, and caches the result to `~/.config/agentctl/recaps/<id>.md` so re-opening is instant.
   `^r` now refreshes the session list; `r` recaps. The GUI gets a **Generate recap** button in the
   details pane.
 - **Last-used timestamp** shown for every session in both the TUI and GUI.
@@ -81,21 +81,21 @@ All notable changes to Agent CLI Menu are documented here. Format loosely follow
 
 ### Changed
 
-- **App bundle renamed to `Agent CLI Menu.app`** (+ `CFBundleName` = "Agent CLI Menu") so Spotlight,
-  Raycast, and Finder show the spaced display name instead of "AgentCliMenu". `brew upgrade --cask
-  agentclimenu` swaps the bundle. Identifiers (`agentclimenu` token, repo, `com.agentclimenu.menubar`,
-  `agent-cli-menu`/`acm` binaries) are unchanged.
+- **App bundle renamed to `Agentctl.app`** (+ `CFBundleName` = "Agentctl") so Spotlight,
+  Raycast, and Finder show the spaced display name instead of "Agentctl". `brew upgrade --cask
+  agentctl` swaps the bundle. Identifiers (`agentctl` token, repo, `com.roypadina.agentctl`,
+  `agentctl`/`agentctl` binaries) are unchanged.
 
 ## [0.2.0] — 2026-06-05
 
 ### Changed (breaking)
 
 - **Commands renamed.** The three separate commands `cm` / `cld` / `ccsm` are replaced by a single
-  **`agent-cli-menu`** (short alias **`acm`**). It opens **New** by default; **`-r`** / **`--resume`**
+  **`agentctl`** (short alias **`agentctl`**). It opens **New** by default; **`-r`** / **`--resume`**
   opens **Resume**. Want `cld`/`cdx`-style per-tool shortcuts? Add your own shell aliases. After
-  `brew upgrade --cask agentclimenu`, the old `cm`/`cld`/`ccsm` symlinks are removed.
-- **Display name** is now "Agent CLI Menu" (spaces) in the app, menu bar, and docs. The cask token
-  (`agentclimenu`), repo, and bundle id are unchanged.
+  `brew upgrade --cask agentctl`, the old `cm`/`cld`/`ccsm` symlinks are removed.
+- **Display name** is now "Agentctl" (spaces) in the app, menu bar, and docs. The cask token
+  (`agentctl`), repo, and bundle id are unchanged.
 
 ## [0.1.1] — 2026-06-05
 
@@ -107,7 +107,7 @@ All notable changes to Agent CLI Menu are documented here. Format loosely follow
 
 ## [0.1.0] — 2026-06-05
 
-First public release. Agent CLI Menu merges two tools — the `cld` project launcher and the
+First public release. Agentctl merges two tools — the `cld` project launcher and the
 `ccsm` session manager — into one, with a native macOS GUI.
 
 ### Added
@@ -123,11 +123,11 @@ First public release. Agent CLI Menu merges two tools — the `cld` project laun
 - **Native macOS GUI** (`gui/`): a SwiftUI menu-bar + window app — keyboard-driven picker
   (custom search field with arrow/enter/esc/tab handling), full-row selection, transcript preview
   pane, in-app config editor with color pickers, a configurable terminal, and a global hotkey.
-- **Shared TOML config** at `~/.config/agentclimenu/config.toml`, edited by hand or in the GUI.
-- Homebrew cask (`roypadina/tap/agentclimenu`) bundling the GUI app and the `cm`/`cld`/`ccsm` CLI.
+- **Shared TOML config** at `~/.config/agentctl/config.toml`, edited by hand or in the GUI.
+- Homebrew cask (`roypadina/tap/agentctl`) bundling the GUI app and the `cm`/`cld`/`ccsm` CLI.
 
-[0.3.0]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.3.0
-[0.2.1]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.2.1
-[0.2.0]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.2.0
-[0.1.1]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.1.1
-[0.1.0]: https://github.com/roypadina/AgentCliMenu/releases/tag/v0.1.0
+[0.3.0]: https://github.com/roypadina/Agentctl/releases/tag/v0.3.0
+[0.2.1]: https://github.com/roypadina/Agentctl/releases/tag/v0.2.1
+[0.2.0]: https://github.com/roypadina/Agentctl/releases/tag/v0.2.0
+[0.1.1]: https://github.com/roypadina/Agentctl/releases/tag/v0.1.1
+[0.1.0]: https://github.com/roypadina/Agentctl/releases/tag/v0.1.0

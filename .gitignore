@@ -6,7 +6,7 @@ dist/
 coverage/
 
 # GUI build artifacts
-gui/AgentCliMenuBar/.build/
+gui/AgentctlBar/.build/
 gui/*.app/
 gui/*.zip
 docs/DISTRIBUTION.md

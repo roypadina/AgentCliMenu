@@ -3,8 +3,8 @@ import { listSessions, getSession } from '../core/sessionRepo.js';
 
 // Version is baked in at build time from package.json (tsup `define`), so it never drifts from a
 // hardcoded literal. Running from source via tsx (no define) falls back to 'dev'.
-declare const __ACM_VERSION__: string;
-const PKG_VERSION = typeof __ACM_VERSION__ === 'string' ? __ACM_VERSION__ : 'dev';
+declare const __AGENTCTL_VERSION__: string;
+const PKG_VERSION = typeof __AGENTCTL_VERSION__ === 'string' ? __AGENTCTL_VERSION__ : 'dev';
 import { renderTable } from './render.js';
 import { renderPeek } from './peek.js';
 import { resume, ResumeError } from './resume.js';
@@ -35,8 +35,8 @@ export async function resolveId(prefix: string) {
 export function buildProgram(): Command {
   const program = new Command();
   program
-    .name('agent-cli-menu')
-    .description('Agent CLI Menu — start a new Claude/Codex session in a project, or search + resume an existing one')
+    .name('agentctl')
+    .description('Agentctl — start a new Claude/Codex session in a project, or search + resume an existing one')
     .version(PKG_VERSION)
     .option('-r, --resume', 'open the Resume menu (default opens New)')
     .action(async (opts: { resume?: boolean }) => {
@@ -124,7 +124,7 @@ export function buildProgram(): Command {
 }
 
 async function main() {
-  // Bare `agent-cli-menu` → New; `-r`/`--resume` → Resume; both via the root action.
+  // Bare `agentctl` → New; `-r`/`--resume` → Resume; both via the root action.
   await buildProgram().parseAsync(process.argv);
 }
 

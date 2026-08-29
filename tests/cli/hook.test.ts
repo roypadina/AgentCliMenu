@@ -4,7 +4,7 @@ import type { Annotation } from '../../src/core/types.js';
 
 const ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const payload = JSON.stringify({ session_id: ID, hook_event_name: 'SessionStart', source: 'startup' });
-const ann = (o: Partial<Annotation> = {}): Annotation => ({ sessionId: ID, flags: [], done: false, ...o });
+const ann = (o: Partial<Annotation> = {}): Annotation => ({ sessionId: ID, flags: [], labels: [], done: false, ...o });
 const none = { annotation: () => null, all: () => new Map<string, Annotation>() };
 
 describe('parseSessionId', () => {
@@ -21,13 +21,13 @@ describe('sessionStartContext', () => {
   });
 
   it('nudges an unnamed session to name itself', () => {
-    expect(sessionStartContext(payload, none)).toContain('has no Agent CLI Menu name');
+    expect(sessionStartContext(payload, none)).toContain('has no Agentctl name');
   });
 
   it('hands a named session its own name instead of the nudge', () => {
     const out = sessionStartContext(payload, { ...none, annotation: () => ann({ name: 'billing spike' }) });
     expect(out).toContain('"billing spike"');
-    expect(out).not.toContain('has no Agent CLI Menu name');
+    expect(out).not.toContain('has no Agentctl name');
   });
 
   it('surfaces flags, notes, done state and a due reminder', () => {
@@ -38,7 +38,7 @@ describe('sessionStartContext', () => {
     });
     expect(out).toContain('#todo');
     expect(out).toContain('waiting on Dor');
-    expect(out).toContain('acm done --undo');
+    expect(out).toContain('agentctl done --undo');
     // a done session never nags about its reminder
     expect(out).not.toContain('reminder is due');
   });
@@ -55,6 +55,6 @@ describe('sessionStartContext', () => {
   });
 
   it('always ends with the tool list so the model knows the commands', () => {
-    expect(sessionStartContext(payload, none).trimEnd()).toMatch(/acm done`\.$|acm done`[^\n]*$/);
+    expect(sessionStartContext(payload, none).trimEnd()).toMatch(/agentctl done`\.$|agentctl done`[^\n]*$/);
   });
 });
