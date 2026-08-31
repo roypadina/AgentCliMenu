@@ -137,7 +137,8 @@ enum Cm {
     static func invocation() -> String? {
         if let o = ProcessInfo.processInfo.environment["ACM_BIN"], !o.isEmpty { return o }
         let home = NSHomeDirectory()
-        let dirs = ["/opt/homebrew/bin", "/usr/local/bin", "\(home)/.local/bin"]
+        let dirs = ["/Applications/Agentctl.app/Contents/Resources/cli/bin",
+                    "/opt/homebrew/bin", "/usr/local/bin", "\(home)/.local/bin"]
         for name in ["agentctl", "agentctl"] {
             for d in dirs {
                 let c = "\(d)/\(name)"
@@ -147,9 +148,37 @@ enum Cm {
         return nil
     }
 
+    /// A GUI app launched from Finder inherits PATH=/usr/bin:/bin:/usr/sbin:/sbin — no Homebrew,
+    /// no nvm. The bundled CLI shim is `#!/usr/bin/env node`, so without help it dies with
+    /// "env: node: No such file or directory". Sourcing the login profile would fix it and bring
+    /// back everything that made `-lc` wrong: latency on every call, and any banner the profile
+    /// prints landing in front of the JSON. Find the interpreter instead.
+    static func toolPath() -> String {
+        let home = NSHomeDirectory()
+        var dirs = ["/opt/homebrew/bin", "/usr/local/bin", "\(home)/.local/bin"]
+        // nvm keeps versions side by side; newest first, and only ones that actually have node.
+        let nvm = "\(home)/.nvm/versions/node"
+        if let versions = try? FileManager.default.contentsOfDirectory(atPath: nvm) {
+            dirs += versions.sorted(by: >)
+                .map { "\(nvm)/\($0)/bin" }
+                .filter { FileManager.default.isExecutableFile(atPath: "\($0)/node") }
+        }
+        dirs += ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+        let inherited = ProcessInfo.processInfo.environment["PATH"] ?? ""
+        return (dirs + (inherited.isEmpty ? [] : [inherited])).joined(separator: ":")
+    }
+
+    /// Environment for every child: the inherited one with a PATH that can actually find node.
+    private static func childEnvironment() -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = toolPath()
+        return env
+    }
+
     private static func run(_ args: String) throws -> Data {
         guard let cm = invocation() else { throw CmError.notFound }
         let p = Process()
+        p.environment = childEnvironment()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
         // -c, not -lc: sourcing the login profile on every call costs a round trip, and anything
         // it echoes lands in front of the JSON and breaks the decode. `invocation()` already
@@ -307,8 +336,9 @@ enum Cm {
             let failure: String?
             if let cm = invocation() {
                 let p = Process()
+                p.environment = childEnvironment()
                 p.executableURL = URL(fileURLWithPath: "/bin/sh")
-                p.arguments = ["-lc", "\(cm) gui config-save"]
+                p.arguments = ["-c", "\(cm) gui config-save"]
                 let inp = Pipe(); let out = Pipe(); let err = Pipe()
                 p.standardInput = inp; p.standardOutput = out; p.standardError = err
                 do {
