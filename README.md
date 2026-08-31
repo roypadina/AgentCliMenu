@@ -201,7 +201,7 @@ key from the branch.)
 |---|---|---|---|
 | `⌘E` name | `⇧⌘N` note | `⌘L` labels | `⇧⌘F` flags |
 | `⌘T` remind | `⌘U` due | `⌘D` done | `⇧⌘H` hide |
-| `⌘⌫` delete | `⌘P` details pane | `⌘R` recap | `⇧⌘C` copy resume command |
+| `⌘X` / `⌘⌫` delete | `⌘P` details pane | `⌘R` recap | `⇧⌘C` copy resume command |
 | `⇧⌘D` hide done | `⇧⌘T` tool runs | `⇧⌘V` hidden | `⇧⌘R` reload |
 | `⇧⌘A` account | `⌘F` clear search | `⌘,` settings | `⇥` New ⇄ Resume |
 | `⌘M` mark | `⇧⌘M` clear marks | | |
@@ -211,7 +211,7 @@ key from the branch.)
 
 ⌘ is what separates a command from typing — the search field holds focus permanently. Where macOS
 already owns a combination (`⌘H` hides the app, `⌘X`/`⌘C`/`⌘V` edit text) the shift variant is used,
-and delete takes Finder's `⌘⌫`. The annotation shortcuts open the details pane and drop the caret
+and delete answers to both `⌘X` (the terminal menu's key) and Finder's `⌘⌫`. The annotation shortcuts open the details pane and drop the caret
 straight into the right field; `esc` puts it back in the search box.
 
 `space` marks sessions — `h`, `x` and `d` then act on every marked one at once, and the cursor stays

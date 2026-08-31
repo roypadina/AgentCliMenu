@@ -50,7 +50,7 @@ enum Shortcut {
             Row(keys: "⌘U", what: "Due — opens the when field"),
             Row(keys: "⌘D", what: "Mark it done"),
             Row(keys: "⇧⌘H", what: "Move it to Hidden"),
-            Row(keys: "⌘⌫", what: "Move it to Deleted — recoverable, the transcript is untouched"),
+            Row(keys: "⌘X  ⌘⌫", what: "Delete — recoverable, the transcript is untouched"),
         ]),
         Group(title: "Other", rows: [
             Row(keys: "⇧⇥", what: "Cycle the tool to launch — New tab"),

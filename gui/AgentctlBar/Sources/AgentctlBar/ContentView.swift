@@ -437,7 +437,7 @@ struct ContentView: View {
             whenMenu(s, .remind)
             whenMenu(s, .due)
             Spacer(minLength: 0)
-            shelfMenu(s)
+            shelfButtons(s)
         }
     }
 
@@ -477,33 +477,39 @@ struct ContentView: View {
                        : "When the work in this session is actually due")
     }
 
-    /// Hidden and deleted are not things done TO a session — they are which list it sits in, the
-    /// same three shelves the header's view menu reads. So it is one place-picker, not two verbs,
-    /// and it is never red and never a trash can: nothing here destroys anything.
-    private func shelfMenu(_ s: Session) -> some View {
-        let shelf = s.isDeleted ? "Deleted" : s.isHidden ? "Hidden" : "Listed"
-        return Menu {
-            // Named as the acts people come looking for. The picker still shows where the session
-            // sits — but "Listed ▾" alone did not read as "this is where hide and delete live".
-            Section("Move to") {
-                Picker("", selection: Binding(
-                    get: { shelf },
-                    set: { moveToShelf(s, $0) }
-                )) {
-                    Text("Listed — show it normally").tag("Listed")
-                    Text("Hidden  ⇧⌘H").tag("Hidden")
-                    Text("Deleted  ⌘⌫").tag("Deleted")
-                }
-                .pickerStyle(.inline).labelsHidden()
+    /// Two plain buttons saying what they do. This was a single picker labelled with the shelf
+    /// the session sits on — a better model, and one nobody could find: asked twice where hide
+    /// and delete were, with the control on screen both times. Naming the act beats naming the
+    /// state. Still not red and still no trash can: nothing here destroys anything, and the
+    /// button says so when you hover it.
+    @ViewBuilder
+    private func shelfButtons(_ s: Session) -> some View {
+        HStack(spacing: 8) {
+            if s.isDeleted || s.isHidden {
+                Text(s.isDeleted ? "Deleted" : "Hidden")
+                    .font(.system(size: 11, design: .monospaced)).foregroundColor(Tone.warn)
             }
-        } label: {
-            Label(shelf == "Listed" ? "Hide or delete" : shelf,
-                  systemImage: shelf == "Deleted" ? "archivebox"
-                             : shelf == "Hidden" ? "eye.slash" : "list.bullet")
+            Button {
+                moveToShelf(s, s.isHidden ? "Listed" : "Hidden")
+            } label: {
+                Label(s.isHidden ? "Unhide" : "Hide", systemImage: s.isHidden ? "eye" : "eye.slash")
+            }
+            .font(.system(size: 11)).buttonStyle(.borderless)
+            .foregroundColor(s.isHidden ? Tone.warn : .secondary)
+            .help(s.isHidden ? "Put it back in the normal list  (⇧⌘H)"
+                             : "Keep it out of the normal list — it stays under ≣ → Hidden. The transcript is never touched.  (⇧⌘H)")
+
+            Button {
+                moveToShelf(s, s.isDeleted ? "Listed" : "Deleted")
+            } label: {
+                Label(s.isDeleted ? "Restore" : "Delete",
+                      systemImage: s.isDeleted ? "arrow.uturn.backward" : "archivebox")
+            }
+            .font(.system(size: 11)).buttonStyle(.borderless)
+            .foregroundColor(s.isDeleted ? Tone.warn : .secondary)
+            .help(s.isDeleted ? "Put it back in the lists  (⌘X)"
+                              : "Take it out of every list — recoverable from ≣ → Deleted, and the transcript is never touched.  (⌘X)")
         }
-        .font(.caption2).menuStyle(.borderlessButton).fixedSize()
-        .foregroundColor(shelf == "Listed" ? .secondary : Tone.warn)
-        .help("Hide or delete this session. Both only change which list it appears in — the transcript is never touched and it still resumes by id.")
     }
 
     /// The transient field behind `Custom…` (and ⌘T / ⌘U): everything the CLI parses, costing no
@@ -918,6 +924,10 @@ struct ContentView: View {
 
         // ⌘⌫ — Finder's "move to trash". Here it only takes the session out of the lists.
         if e.keyCode == 51 && !shift { return annotateSelected { s in (deleted: !s.isDeleted, hidden: nil, done: nil) } }
+        // ⌘X too: the terminal menu deletes with `x`, and this app has no document to cut from.
+        if e.charactersIgnoringModifiers?.lowercased() == "x" && !shift {
+            return annotateSelected { s in (deleted: !s.isDeleted, hidden: nil, done: nil) }
+        }
 
         guard let key = e.charactersIgnoringModifiers?.lowercased(), key.count == 1 else { return false }
 
